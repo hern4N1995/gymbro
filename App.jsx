@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History } from "lucide-react";
+import supabase from "./supabaseClient";
+import RestTimer from "./src/components/RestTimer";
+import ProfileModal from "./src/components/ProfileModal";
+import Analytics from "./src/components/Analytics";
+import { restDefaultByExercise, estimate1RM, volumeSeries } from "./src/utils/fitnessHelpers";
+import EXERCISE_MUSCLE_MAP from "./src/config/muscleMapping";
 
 // Configuración visual por día
 const PLATE = {
@@ -87,6 +93,19 @@ const defaultDayId = () => {
   return map[new Date().getDay()] || "lun";
 };
 
+const uniqueById = (arr) => {
+  const seen = new Set();
+  const out = [];
+  (arr || []).forEach((it) => {
+    const key = it.id || (it.exercise_id ?? null) || JSON.stringify(it);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(it);
+    }
+  });
+  return out;
+};
+
 export default function RutinaTracker() {
   const [routine, setRoutine] = useState(DEFAULT_ROUTINE);
   const [selectedDay, setSelectedDay] = useState(defaultDayId());
@@ -98,21 +117,146 @@ export default function RutinaTracker() {
   const [drafts, setDrafts] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [session, setSession] = useState(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [showTimer, setShowTimer] = useState(false);
+  const [loadingRoutine, setLoadingRoutine] = useState(false);
+  const wakeLockRef = React.useRef(null);
 
+  // Wake Lock: request while rest timer visible
   useEffect(() => {
-    try {
-      const savedRoutine = localStorage.getItem("wlog_routine_structure");
-      if (savedRoutine) {
-        setRoutine(JSON.parse(savedRoutine));
+    let visibilityHandler = null;
+    const requestLock = async () => {
+      try {
+        if ('wakeLock' in navigator && showTimer) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          visibilityHandler = async () => {
+            if (document.visibilityState === 'visible' && !wakeLockRef.current) {
+              try {
+                wakeLockRef.current = await navigator.wakeLock.request('screen');
+              } catch {}
+            }
+          };
+          document.addEventListener('visibilitychange', visibilityHandler);
+        }
+      } catch (e) {
+        console.warn('WakeLock not available', e);
       }
-    } catch (e) {
-      console.error("Error al cargar estructura", e);
-    }
+    };
+
+    const releaseLock = async () => {
+      try {
+        if (wakeLockRef.current && wakeLockRef.current.release) {
+          await wakeLockRef.current.release();
+          wakeLockRef.current = null;
+        }
+      } catch (e) {}
+      if (visibilityHandler) document.removeEventListener('visibilitychange', visibilityHandler);
+    };
+
+    if (showTimer) requestLock();
+    else releaseLock();
+
+    return () => {
+      releaseLock();
+    };
+  }, [showTimer]);
+
+  // Auto-clear error toasts
+  useEffect(() => {
+    if (!errorMsg) return;
+    const id = setTimeout(() => setErrorMsg(''), 4000);
+    return () => clearTimeout(id);
+  }, [errorMsg]);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [performanceAlert, setPerformanceAlert] = useState(null);
+
+  // Auth listener: mantiene `session` actualizado
+  useEffect(() => {
+    let mounted = true;
+    const init = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSession(data?.session ?? null);
+      } catch (e) {
+        console.error("Error getting session", e);
+      }
+    };
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => {
+      setSession(sess);
+    });
+    return () => {
+      mounted = false;
+      try {
+        listener?.subscription?.unsubscribe?.();
+      } catch {}
+    };
   }, []);
 
-  const saveRoutineStructure = (newRoutine) => {
+  // Cargar estructura: si hay sesión, cargar desde Supabase; si no, desde localStorage
+  useEffect(() => {
+    const loadFromLocal = () => {
+      try {
+        const savedRoutine = localStorage.getItem("wlog_routine_structure");
+        if (savedRoutine) {
+          setRoutine(JSON.parse(savedRoutine));
+        }
+      } catch (e) {
+        console.error("Error al cargar estructura local", e);
+      }
+    };
+
+    const loadFromSupabase = async (userId) => {
+      setLoadingRoutine(true);
+      try {
+        const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", userId);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          // Sembrar rutina por defecto en la tabla para este usuario
+          const toInsert = DEFAULT_ROUTINE.flatMap((d) =>
+            d.exercises.map((ex) => ({ user_id: userId, day_id: d.id, exercise_id: ex.id, exercise_name: ex.name, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, rest: ex.rest, muscle_group: EXERCISE_MUSCLE_MAP[ex.id] || 'Otros' }))
+          );
+          const { data: inserted, error: insErr } = await supabase.from("rutinas_usuario").insert(toInsert).select();
+          if (insErr) throw insErr;
+          // Normalize inserted rows so UI uses exercise_id as `id` when present
+          const normalizedInserted = uniqueById((inserted || []).map(r => ({ ...r, id: r.exercise_id || r.id })));
+          // Agrupar por día
+          const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: uniqueById(normalizedInserted.filter((r) => r.day_id === d.id)) }));
+          setRoutine(grouped);
+          return;
+        }
+        // Normalize fetched rows so UI uses exercise_id as `id` when present
+        const normalized = uniqueById((data || []).map(r => ({ ...r, id: r.exercise_id || r.id })));
+        // Agrupar filas por day_id en la estructura esperada
+        const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: uniqueById(normalized.filter((r) => r.day_id === d.id)) }));
+        setRoutine(grouped);
+      } catch (e) {
+        console.error("Error cargando rutina desde Supabase", e);
+        setErrorMsg('Error cargando rutina: ' + (e.message || e));
+        loadFromLocal();
+      }
+      finally {
+        setLoadingRoutine(false);
+      }
+    };
+
+    if (session && session.user) {
+      loadFromSupabase(session.user.id);
+    } else {
+      loadFromLocal();
+    }
+  }, [session]);
+
+  const saveRoutineStructure = async (newRoutine) => {
     setRoutine(newRoutine);
-    localStorage.setItem("wlog_routine_structure", JSON.stringify(newRoutine));
+    // Cuando hay sesión, persistir cambios en Supabase (se realiza por operación puntual en add/edit/delete). Mantener también copia local por compatibilidad.
+    try {
+      localStorage.setItem("wlog_routine_structure", JSON.stringify(newRoutine));
+    } catch {}
   };
 
   const loadExerciseHistory = useCallback((id) => {
@@ -134,6 +278,58 @@ export default function RutinaTracker() {
     });
     setHistory((prev) => ({ ...prev, ...newHistory }));
   }, [selectedDay, day, loadExerciseHistory]);
+
+  // Al abrir un ejercicio (expanded), comprobar últimos 2 registros para detectar descenso
+  useEffect(() => {
+    const check = async () => {
+      if (!expanded) return setPerformanceAlert(null);
+      try {
+        if (session && session.user) {
+          const { data } = await supabase.from('historial').select('*').eq('user_id', session.user.id).eq('exercise_id', expanded).order('date', { ascending: false }).limit(3);
+          if (data && data.length >= 2) {
+            const last = data[0];
+            const prev = data[1];
+            if ((last.weight * last.reps) < (prev.weight * prev.reps)) {
+              setPerformanceAlert('⚠️ Rendimiento en descenso las últimas 2 sesiones. Revisa tu descanso (sueño), tu ingesta de calorías/proteínas o si estás comiendo por debajo de tu metabolismo basal (BMR).');
+              return;
+            }
+          }
+          // Prefill drafts with latest registro
+          const { data: lastRecArr } = await supabase.from('historial').select('*').eq('user_id', session.user.id).eq('exercise_id', expanded).order('date', { ascending: false }).limit(1);
+          const lastRec = (lastRecArr && lastRecArr[0]) || null;
+          if (lastRec) {
+            setDrafts((prev) => ({ ...prev, [expanded]: { weight: String(lastRec.weight || ''), reps: String(lastRec.reps || ''), rir: lastRec.rir || '', notes: lastRec.notes || '' } }));
+          }
+        } else {
+          const h = history[expanded] || [];
+          if (h.length >= 2) {
+            const sorted = [...h].sort((a,b)=>a.date<b.date?1:-1);
+            const last = sorted[0];
+            const prev = sorted[1];
+            const lastVol = (last.sets || []).reduce((s,si)=>s + ((si.weight||0)*(si.reps||0)),0);
+            const prevVol = (prev.sets || []).reduce((s,si)=>s + ((si.weight||0)*(si.reps||0)),0);
+            if (lastVol < prevVol) {
+              setPerformanceAlert('⚠️ Rendimiento en descenso las últimas 2 sesiones. Revisa tu descanso (sueño), tu ingesta de calorías/proteínas o si estás comiendo por debajo de tu metabolismo basal (BMR).');
+              return;
+            }
+          }
+          // Prefill drafts from local history
+          if (h.length > 0) {
+            const sorted = [...h].sort((a,b)=>a.date<b.date?1:-1);
+            const last = sorted[0];
+            if (last && last.sets && last.sets.length) {
+              const s = last.sets[last.sets.length - 1];
+              setDrafts((prev) => ({ ...prev, [expanded]: { weight: String(s.weight || ''), reps: String(s.reps || ''), rir: '', notes: '' } }));
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error comprobando rendimiento', e);
+      }
+      setPerformanceAlert(null);
+    };
+    check();
+  }, [expanded, session, history]);
 
   const saveHistory = (exerciseId, newHistory) => {
     try {
@@ -161,6 +357,8 @@ export default function RutinaTracker() {
     const draft = drafts[exerciseId] || {};
     const weight = parseFloat(draft.weight);
     const reps = parseInt(draft.reps, 10);
+    const rir = draft.rir;
+    const notes = draft.notes;
     if (!weight || weight <= 0 || !reps || reps <= 0) {
       setErrorMsg("Ingresá un peso y repeticiones válidos.");
       return;
@@ -172,7 +370,23 @@ export default function RutinaTracker() {
     const newSets = current ? [...current.sets, { weight, reps }] : [{ weight, reps }];
     const newHistory = [...rest, { date: today, sets: newSets }];
     saveHistory(exerciseId, newHistory);
-    setDrafts((prev) => ({ ...prev, [exerciseId]: { weight: "", reps: String(reps) } }));
+    setDrafts((prev) => ({ ...prev, [exerciseId]: { weight: "", reps: String(reps), rir: "", notes: "" } }));
+
+    // Persistir serie en Supabase `historial`
+    (async () => {
+      try {
+        const exObj = routine.flatMap((d) => d.exercises).find((e) => e.id === exerciseId);
+        const restSec = restDefaultByExercise(exObj?.name || "");
+        setTimerSeconds(restSec);
+        setShowTimer(true);
+
+        if (session && session.user) {
+          await supabase.from('historial').insert({ user_id: session.user.id, exercise_id: exerciseId, date: today, weight, reps, rir: rir || null, notes: notes || null });
+        }
+      } catch (err) {
+        console.error('Error guardando historial en Supabase', err);
+      }
+    })();
   };
 
   const removeLastSet = (exerciseId) => {
@@ -186,7 +400,7 @@ export default function RutinaTracker() {
     saveHistory(exerciseId, newHistory);
   };
 
-  const handleSaveExercise = (e) => {
+  const handleSaveExercise = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const name = formData.get("name");
@@ -194,34 +408,87 @@ export default function RutinaTracker() {
     const reps = formData.get("reps");
     const rir = formData.get("rir");
     const rest = formData.get("rest");
+    const formMuscle = formData.get("muscle_group") || EXERCISE_MUSCLE_MAP[editingEx?.id] || 'Otros';
 
     if (!name) return;
 
-    const newRoutine = routine.map((d) => {
-      if (d.id !== selectedDay) return d;
+    if (session && session.user) {
+      try {
+        if (editingEx && editingEx.id) {
+          // Actualizar ejercicio en Supabase
+          const { data: updated, error: updErr } = await supabase
+            .from("rutinas_usuario")
+            .update({ name, sets, reps, rir, rest, day_id: selectedDay, muscle_group: formMuscle })
+            .eq("id", editingEx.id)
+            .select()
+            .single();
+          if (updErr) throw updErr;
+        } else {
+          // Insertar nuevo ejercicio en Supabase
+          const { data: inserted, error: insErr } = await supabase
+            .from("rutinas_usuario")
+            .insert({ user_id: session.user.id, day_id: selectedDay, name, sets, reps, rir, rest, muscle_group: formMuscle })
+            .select()
+            .single();
+          if (insErr) throw insErr;
+        }
 
-      let updatedExercises = [...d.exercises];
-      if (editingEx && editingEx.id) {
-        updatedExercises = updatedExercises.map((ex) =>
-          ex.id === editingEx.id ? { ...ex, name, sets, reps, rir, rest } : ex
-        );
-      } else {
-        const newId = `${selectedDay}-${Date.now()}`;
-        updatedExercises.push({ id: newId, name, sets, reps, rir, rest });
+        // Refrescar toda la rutina desde Supabase para mantener consistencia
+        const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", session.user.id);
+        if (error) throw error;
+        const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: data.filter((r) => r.day_id === d.id) }));
+        setRoutine(grouped);
+      } catch (err) {
+        console.error("Error guardando ejercicio en Supabase", err);
+        setErrorMsg("No se pudo guardar el ejercicio en la nube.");
+      } finally {
+        setEditingEx(null);
       }
-      return { ...d, exercises: updatedExercises };
-    });
+    } else {
+      // Fallback local
+      const newRoutine = routine.map((d) => {
+        if (d.id !== selectedDay) return d;
 
-    saveRoutineStructure(newRoutine);
-    setEditingEx(null);
+        let updatedExercises = [...d.exercises];
+        if (editingEx && editingEx.id) {
+          updatedExercises = updatedExercises.map((ex) =>
+            ex.id === editingEx.id ? { ...ex, name, sets, reps, rir, rest, muscle_group: formMuscle } : ex
+          );
+        } else {
+          const newId = `${selectedDay}-${Date.now()}`;
+          updatedExercises.push({ id: newId, name, sets, reps, rir, rest, muscle_group: formMuscle });
+        }
+        return { ...d, exercises: updatedExercises };
+      });
+
+      saveRoutineStructure(newRoutine);
+      setEditingEx(null);
+    }
   };
 
-  const handleDeleteExercise = (exId) => {
-    const newRoutine = routine.map((d) => {
-      if (d.id !== selectedDay) return d;
-      return { ...d, exercises: d.exercises.filter((ex) => ex.id !== exId) };
-    });
-    saveRoutineStructure(newRoutine);
+  const handleDeleteExercise = async (exId) => {
+    const ok = window.confirm("¿Querés eliminar este ejercicio?");
+    if (!ok) return;
+
+    if (session && session.user) {
+      try {
+        const { error } = await supabase.from("rutinas_usuario").delete().eq("id", exId);
+        if (error) throw error;
+        // Refrescar desde Supabase
+        const { data } = await supabase.from("rutinas_usuario").select("*").eq("user_id", session.user.id);
+        const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: data.filter((r) => r.day_id === d.id) }));
+        setRoutine(grouped);
+      } catch (err) {
+        console.error("Error borrando ejercicio en Supabase", err);
+        setErrorMsg("No se pudo eliminar el ejercicio en la nube.");
+      }
+    } else {
+      const newRoutine = routine.map((d) => {
+        if (d.id !== selectedDay) return d;
+        return { ...d, exercises: d.exercises.filter((ex) => ex.id !== exId) };
+      });
+      saveRoutineStructure(newRoutine);
+    }
   };
 
   const doReset = () => {
@@ -240,8 +507,98 @@ export default function RutinaTracker() {
     }
   };
 
+  // --- Autenticación (login / registro) ---
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const email = fd.get("email");
+    const password = fd.get("password");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      setErrorMsg("");
+    } catch (err) {
+      setErrorMsg(err.message || "No se pudo iniciar sesión");
+    }
+  };
+
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    // support being called from a button click (e.target may be the button)
+    const formEl = (e.target && e.target.form) ? e.target.form : e.target;
+    const fd = new FormData(formEl);
+    const email = fd.get("email");
+    const password = fd.get("password");
+    // basic client-side validation
+    if (!email || !password) {
+      setErrorMsg('Completa email y contraseña.');
+      return;
+    }
+    if (String(password).length < 6) {
+      setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    try {
+      const res = await supabase.auth.signUp({ email, password });
+      console.log('supabase.signUp response', res);
+      if (res.error) {
+        setErrorMsg(res.error.message || 'Error al registrarse');
+        return;
+      }
+      setErrorMsg("Revisa tu correo para confirmar la cuenta (si aplica).");
+    } catch (err) {
+      setErrorMsg(err.message || "No se pudo crear la cuenta");
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      await supabase.auth.signInWithOAuth({ provider: "google" });
+    } catch (err) {
+      setErrorMsg(err.message || "Error OAuth");
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setSession(null);
+    } catch (err) {
+      console.error("Error signout", err);
+    }
+  };
+
+  // Mostrar pantalla de Login/Registro cuando no hay sesión
+  if (!session || !session.user) {
+    return (
+      <div className="min-h-screen w-full bg-[#111214] text-neutral-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-[#0F1112] border border-neutral-800 rounded-2xl p-6">
+          <h2 className="text-xl font-black mb-4">Iniciar sesión / Registrarse</h2>
+          <form onSubmit={handleSignIn} className="flex flex-col gap-3">
+            <input name="email" type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+            <input name="password" type="password" placeholder="Contraseña" autoComplete="current-password" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesión</button>
+              <button type="button" onClick={handleSignUp} className="flex-1 bg-neutral-800 text-neutral-300 font-bold py-2 rounded-lg">Registrarme</button>
+            </div>
+          </form>
+          <div className="mt-4">
+            <button onClick={signInWithGoogle} className="w-full bg-white text-black font-bold py-2 rounded-lg">Iniciar con Google</button>
+          </div>
+          {errorMsg && <div className="mt-3 text-sm text-red-400">{errorMsg}</div>}
+        </div>
+      </div>
+    );
+  }
+
   return (
+    <>
     <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-16 mobile-tight">
+      {loadingRoutine && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,18,20,0.6)' }}>
+          <div className="bg-[#0F1112] border border-neutral-800 rounded-lg p-4">Cargando rutina...</div>
+        </div>
+      )}
       <div className="px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-1">
@@ -256,21 +613,33 @@ export default function RutinaTracker() {
           </h1>
         </div>
 
-        <button
-          onClick={() => {
-            setIsEditMode(!isEditMode);
-            setEditingEx(null);
-          }}
-          className={`min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${
-            isEditMode
-              ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
-              : "bg-[#1B1D21] border-neutral-800 text-neutral-400 hover:text-white"
-          }`}
-        >
-          <Settings size={16} />
-          {isEditMode ? "Listo" : "Editar"}
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-neutral-300 mr-2 truncate">{session?.user?.email}</div>
+          <button onClick={() => setShowProfile(true)} className="min-h-[36px] px-2 py-1 rounded border bg-[#1B1D21] text-neutral-300 text-xs">Perfil</button>
+          <button onClick={() => setShowAnalytics(true)} className="min-h-[36px] px-2 py-1 rounded border bg-[#1B1D21] text-neutral-300 text-xs">Analíticas</button>
+          
+          <button
+            onClick={() => {
+              setIsEditMode(!isEditMode);
+              setEditingEx(null);
+            }}
+            className={`min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${
+              isEditMode
+                ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
+                : "bg-[#1B1D21] border-neutral-800 text-neutral-400 hover:text-white"
+            }`}
+          >
+            <Settings size={16} />
+            {isEditMode ? "Listo" : "Editar"}
+          </button>
+          <button onClick={handleSignOut} className="min-h-[44px] px-3 py-2 rounded-xl border bg-[#1B1D21] text-neutral-300 text-xs">Cerrar Sesión</button>
+        </div>
       </div>
+      {errorMsg && (
+        <div style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 90 }}>
+          <div className="bg-red-600 text-white px-4 py-2 rounded shadow">{errorMsg}</div>
+        </div>
+      )}
 
       <div className="flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar">
         {routine.map((d) => {
@@ -320,6 +689,23 @@ export default function RutinaTracker() {
                 placeholder="Ej: Press Banca Plano"
                 className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
               />
+            </div>
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
+              <select
+                name="muscle_group"
+                defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"}
+                required
+                className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+              >
+                <option>Pecho</option>
+                <option>Espalda</option>
+                <option>Hombro</option>
+                <option>Bíceps</option>
+                <option>Tríceps</option>
+                <option>Pierna</option>
+                <option>Otros</option>
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -460,6 +846,9 @@ export default function RutinaTracker() {
 
               {isOpen && !isEditMode && (
                 <div className="px-4 pb-4 border-t border-neutral-800 pt-3">
+                  {performanceAlert && expanded === ex.id && (
+                    <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
+                  )}
                   {todaySets.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-3">
                       {todaySets.map((s, i) => (
@@ -501,6 +890,27 @@ export default function RutinaTracker() {
                         onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
                         placeholder="0"
                         className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                      />
+                    </div>
+                    <div style={{ width: 88 }}>
+                      <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={draft.rir || ""}
+                        onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
+                        placeholder="RIR"
+                        className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
+                      />
+                    </div>
+                    <div style={{ width: 160 }}>
+                      <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
+                      <input
+                        type="text"
+                        value={draft.notes || ""}
+                        onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
+                        placeholder="Nota rápida"
+                        className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
                       />
                     </div>
                     <button
@@ -605,5 +1015,9 @@ export default function RutinaTracker() {
         )}
       </div>
     </div>
+      {showTimer && <RestTimer seconds={timerSeconds} onClose={() => setShowTimer(false)} />}
+      {showProfile && session?.user && <ProfileModal onClose={() => setShowProfile(false)} user={session.user} />}
+      {showAnalytics && session?.user && <Analytics onClose={() => setShowAnalytics(false)} user={session.user} />}
+    </>
   );
 }
