@@ -869,8 +869,8 @@ export default function RutinaTracker() {
                     </div>
                   )}
 
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-0 w-full sm:w-auto">
                       <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
                       <input
                         type="number"
@@ -881,7 +881,7 @@ export default function RutinaTracker() {
                         className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 w-full sm:w-auto">
                       <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
                       <input
                         type="number"
@@ -892,7 +892,7 @@ export default function RutinaTracker() {
                         className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
                       />
                     </div>
-                    <div style={{ width: 88 }}>
+                    <div className="w-full sm:w-[88px]">
                       <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
                       <input
                         type="number"
@@ -903,7 +903,7 @@ export default function RutinaTracker() {
                         className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
                       />
                     </div>
-                    <div style={{ width: 160 }}>
+                    <div className="w-full sm:w-[160px]">
                       <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
                       <input
                         type="text"
@@ -915,7 +915,7 @@ export default function RutinaTracker() {
                     </div>
                     <button
                       onClick={() => addSet(ex.id)}
-                      className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
+                      className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
                       style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
                     >
                       <Plus size={18} strokeWidth={3} />

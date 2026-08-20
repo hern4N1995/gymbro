@@ -15,8 +15,8 @@ export default defineConfig({
         theme_color: '#111214',
         background_color: '#111214',
         display: 'standalone',
-        start_url: './',
-        scope: './',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
             src: 'android-chrome-192x192.png',
