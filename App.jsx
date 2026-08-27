@@ -229,6 +229,9 @@ export default function RutinaTracker() {
   const [exerciseMenuOpen, setExerciseMenuOpen] = useState(null);
   const exerciseMenuRefs = React.useRef({});
   const exerciseMenuPanelRef = React.useRef(null);
+  const radialMenuRef = React.useRef(null);
+  const radialMenuTriggerRef = React.useRef(null);
+  const expandedRefs = React.useRef({});
 
   const closeTopLevelOverlay = useCallback(() => {
     if (showCreateDaySheet) {
@@ -334,6 +337,44 @@ export default function RutinaTracker() {
       document.removeEventListener('touchstart', handlePointerDown);
     };
   }, [exerciseMenuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (radialMenuTriggerRef.current && radialMenuTriggerRef.current.contains(target)) return;
+      if (radialMenuRef.current && radialMenuRef.current.contains(target)) return;
+      setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      const node = expandedRefs.current[expanded];
+      if (node && node.contains(target)) return;
+      setExpanded(null);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [expanded]);
 
   // Auth listener: mantiene `session` actualizado
   useEffect(() => {
@@ -1331,18 +1372,58 @@ export default function RutinaTracker() {
               </span>
             </h1>
         </div>
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20">
-          <div className="dropdown-root">
-            <SecondaryButton aria-label="Opciones" onClick={() => setMenuOpen(!menuOpen)} className="flex items-center justify-center text-xs font-bold w-11 h-11 p-0">
-              <User size={16} />
-            </SecondaryButton>
-            {menuOpen && (
-              <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => { setShowProfile(true); setMenuOpen(false); }}><User size={14} /> Perfil</button>
-                <button className="dropdown-item" onClick={() => { setShowAnalytics(true); setMenuOpen(false); }}><Calendar size={14} /> Analíticas</button>
-                <button className="dropdown-item text-red-400 hover:text-red-300" onClick={() => { handleSignOut(); setMenuOpen(false); }}><X size={14} className="text-red-400" /> Cerrar Sesión</button>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex items-center">
+          <div className="relative flex items-center justify-center">
+            <div
+              ref={radialMenuRef}
+              className="pointer-events-none absolute right-[42px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-hidden transition-[width,opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+              style={{
+                opacity: menuOpen ? 1 : 0,
+                width: menuOpen ? '42px' : '0px',
+                height: 100,
+                transform: `translate3d(${menuOpen ? '0px' : '12px'}, -50px, 0) scale(${menuOpen ? 1 : 0.8})`,
+              }}
+            >
+              <div className="relative h-[100px] w-[42px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: menuOpen ? 1 : 0 }}>
+                <button
+                  type="button"
+                  aria-label="Perfil"
+                  onClick={() => { setShowProfile(true); setMenuOpen(false); }}
+                  className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, transform: 'translateX(2px) translate(-50%, 0)', opacity: menuOpen ? 1 : 0 }}
+                >
+                  <User size={16} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Analíticas"
+                  onClick={() => { setShowAnalytics(true); setMenuOpen(false); }}
+                  className="pointer-events-auto absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, transform: 'translateX(-2px) translate(-50%, -50%)', opacity: menuOpen ? 1 : 0 }}
+                >
+                  <Calendar size={16} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Cerrar sesión"
+                  onClick={() => { handleSignOut(); setMenuOpen(false); }}
+                  className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, transform: 'translateX(2px) translate(-50%, 0)', opacity: menuOpen ? 1 : 0 }}
+                >
+                  <X size={16} />
+                </button>
               </div>
-            )}
+            </div>
+
+            <button
+              ref={radialMenuTriggerRef}
+              type="button"
+              aria-label="Opciones"
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white"
+            >
+              <Settings size={16} />
+            </button>
           </div>
         </div>
       </div>
@@ -1711,6 +1792,10 @@ export default function RutinaTracker() {
               return (
                 <div
                   key={ex.id}
+                  ref={(node) => {
+                    if (node) expandedRefs.current[ex.id] = node;
+                    else delete expandedRefs.current[ex.id];
+                  }}
                   className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full"
                   style={{ borderLeftColor: plate.hex, borderLeftWidth: 3 }}
                 >
@@ -1764,6 +1849,8 @@ export default function RutinaTracker() {
                             if (node) exerciseMenuRefs.current[ex.id] = node;
                             else delete exerciseMenuRefs.current[ex.id];
                           }}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onTouchStart={(event) => event.stopPropagation()}
                           onClick={(event) => {
                             event.stopPropagation();
                             setExerciseMenuOpen((current) => current === ex.id ? null : ex.id);
@@ -1778,6 +1865,8 @@ export default function RutinaTracker() {
 
                       <div
                         ref={exerciseMenuPanelRef}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onTouchStart={(event) => event.stopPropagation()}
                         className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
                         style={{ width: exerciseMenuOpen === ex.id ? '34px' : '0px', opacity: exerciseMenuOpen === ex.id ? 1 : 0, zIndex: 10 }}
                       >
@@ -1786,6 +1875,8 @@ export default function RutinaTracker() {
                             type="button"
                             aria-label="Editar ejercicio"
                             title="Editar ejercicio"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onTouchStart={(event) => event.stopPropagation()}
                             onClick={() => {
                               setEditingEx(ex);
                               setOpenFromManage(false);
@@ -1801,6 +1892,8 @@ export default function RutinaTracker() {
                             type="button"
                             aria-label="Ver historial"
                             title="Ver historial"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onTouchStart={(event) => event.stopPropagation()}
                             onClick={() => {
                               setShowHistoryModal(ex.id);
                               setExerciseMenuOpen(null);
@@ -1814,6 +1907,8 @@ export default function RutinaTracker() {
                             type="button"
                             aria-label="Eliminar ejercicio"
                             title="Eliminar ejercicio"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onTouchStart={(event) => event.stopPropagation()}
                             onClick={() => {
                               handleDeleteExercise(ex.id);
                               setExerciseMenuOpen(null);
@@ -1922,8 +2017,13 @@ export default function RutinaTracker() {
       </div>
 
       {showHistoryModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1B1D21] border border-neutral-800 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowHistoryModal(null);
+          }}
+        >
+          <div className="bg-[#1B1D21] border border-neutral-800 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-4 py-3.5 border-b border-neutral-800 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h3 className="font-bold text-sm text-neutral-100 break-words">
