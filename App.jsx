@@ -164,8 +164,11 @@ export default function RutinaTracker() {
   const [restConfigs, setRestConfigs] = useState({});
   const [timerConfigOpen, setTimerConfigOpen] = useState(null); // exerciseId
   const [timerConfigTemp, setTimerConfigTemp] = useState({ seconds: 0, vibrate: true, sound: true });
+  const [timerConfirmExercise, setTimerConfirmExercise] = useState(null);
   const timerLongPressRef = React.useRef(null);
   const timerSuppressClickRef = React.useRef(false);
+  const timerPointerStartRef = React.useRef(null);
+  const timerDragDetectedRef = React.useRef(false);
   const [loadingRoutine, setLoadingRoutine] = useState(false);
   const [info, setInfo] = useState(null);
   const wakeLockRef = React.useRef(null);
@@ -218,6 +221,7 @@ export default function RutinaTracker() {
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [backExitNotice, setBackExitNotice] = useState('');
+  const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [performanceAlert, setPerformanceAlert] = useState(null);
@@ -301,13 +305,19 @@ export default function RutinaTracker() {
 
       if (!backExitNotice) {
         setBackExitNotice('Presioná atrás otra vez para salir');
+        setBackExitNoticeVisible(true);
         if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
-        exitPromptTimerRef.current = setTimeout(() => setBackExitNotice(''), 1800);
+        exitPromptTimerRef.current = setTimeout(() => {
+          setBackExitNoticeVisible(false);
+          setTimeout(() => setBackExitNotice(''), 350);
+        }, 2000);
         pushHistoryState();
         return;
       }
 
       setBackExitNotice('');
+      setBackExitNoticeVisible(false);
+      if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
       try {
         if (navigator.app && navigator.app.exitApp) {
           navigator.app.exitApp();
@@ -326,6 +336,35 @@ export default function RutinaTracker() {
       if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
     };
   }, [backExitNotice, closeTopLevelOverlay, pushHistoryState]);
+
+  const dismissBackExitNotice = useCallback((immediate = false) => {
+    if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
+    if (immediate) {
+      setBackExitNoticeVisible(false);
+      setBackExitNotice('');
+      return;
+    }
+    setBackExitNoticeVisible(false);
+    setTimeout(() => setBackExitNotice(''), 350);
+  }, []);
+
+  useEffect(() => {
+    if (!backExitNotice) return;
+
+    const handleOutsidePress = (event) => {
+      const toast = document.getElementById('app-exit-toast');
+      if (toast && toast.contains(event.target)) return;
+      dismissBackExitNotice(true);
+    };
+
+    document.addEventListener('mousedown', handleOutsidePress);
+    document.addEventListener('touchstart', handleOutsidePress, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsidePress);
+      document.removeEventListener('touchstart', handleOutsidePress);
+    };
+  }, [backExitNotice, dismissBackExitNotice]);
 
   useEffect(() => {
     if (!exerciseMenuOpen) return;
@@ -727,6 +766,8 @@ export default function RutinaTracker() {
 
   const handlePillMouseDown = (event, dayId) => {
     if (event.button !== 0 && event.button !== undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
     startLongPress(event, dayId);
   };
 
@@ -735,6 +776,8 @@ export default function RutinaTracker() {
       endLongPress();
       return;
     }
+    event.preventDefault();
+    event.stopPropagation();
     startLongPress(event, dayId);
   };
 
@@ -1147,6 +1190,9 @@ export default function RutinaTracker() {
 
   const startTimerButtonLongPress = (event, ex) => {
     if (event && event.button !== undefined && event.button !== 0) return;
+    const point = event?.touches?.[0] || event;
+    timerPointerStartRef.current = { x: point.clientX, y: point.clientY };
+    timerDragDetectedRef.current = false;
     if (timerLongPressRef.current) clearTimeout(timerLongPressRef.current);
     timerLongPressRef.current = setTimeout(() => {
       timerSuppressClickRef.current = true;
@@ -1163,12 +1209,39 @@ export default function RutinaTracker() {
     }
   };
 
+  const handleTimerPointerMove = (event) => {
+    const point = event?.touches?.[0] || event;
+    if (!timerPointerStartRef.current || !point) return;
+    const deltaX = Math.abs(point.clientX - timerPointerStartRef.current.x);
+    const deltaY = Math.abs(point.clientY - timerPointerStartRef.current.y);
+    if (deltaX > 10 || deltaY > 10) {
+      timerDragDetectedRef.current = true;
+      endTimerButtonLongPress();
+    }
+  };
+
+  const handleTimerPointerUp = (ex) => {
+    const wasDragged = timerDragDetectedRef.current;
+    timerDragDetectedRef.current = false;
+    timerPointerStartRef.current = null;
+    endTimerButtonLongPress();
+    if (wasDragged) {
+      timerSuppressClickRef.current = true;
+      return;
+    }
+    if (timerSuppressClickRef.current) {
+      timerSuppressClickRef.current = false;
+      return;
+    }
+    setTimerConfirmExercise(ex);
+  };
+
   const handleTimerButtonClick = (ex) => {
     if (timerSuppressClickRef.current) {
       timerSuppressClickRef.current = false;
       return;
     }
-    openTimerForExercise(ex.id, ex.name);
+    setTimerConfirmExercise(ex);
   };
 
   const doReset = () => {
@@ -1809,13 +1882,29 @@ export default function RutinaTracker() {
                     if (node) expandedRefs.current[ex.id] = node;
                     else delete expandedRefs.current[ex.id];
                   }}
-                  className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full"
+                  onClick={(event) => {
+                    const clickedActionButton = event.target.closest('button');
+                    if (clickedActionButton) return;
+                    if (exerciseMenuOpen === ex.id) {
+                      setExerciseMenuOpen(null);
+                      return;
+                    }
+                    setExpanded(isOpen ? null : ex.id);
+                  }}
+                  className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer"
                   style={{ borderLeftColor: plate.hex, borderLeftWidth: 3 }}
                 >
                   <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
                     <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => setExpanded(isOpen ? null : ex.id)}
+                      className="flex-1 min-w-0"
+                      onClick={(event) => {
+                        if (event.target.closest('button')) return;
+                        if (exerciseMenuOpen === ex.id) {
+                          setExerciseMenuOpen(null);
+                          return;
+                        }
+                        setExpanded(isOpen ? null : ex.id);
+                      }}
                     >
                       <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
                       <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
@@ -1831,7 +1920,14 @@ export default function RutinaTracker() {
                     <div className="flex items-center gap-2 shrink-0">
                       <span
                         className="text-[11px] font-bold rounded-full px-2 py-1 tabular-nums cursor-pointer min-h-[32px] flex items-center justify-center"
-                        onClick={() => setExpanded(isOpen ? null : ex.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (exerciseMenuOpen === ex.id) {
+                            setExerciseMenuOpen(null);
+                            return;
+                          }
+                          setExpanded(isOpen ? null : ex.id);
+                        }}
                         style={{
                           backgroundColor: doneCount >= targetCount ? "#2E9E5B33" : "#2a2c30",
                           color: doneCount >= targetCount ? "#59D98A" : "#9a9ca1",
@@ -1843,10 +1939,16 @@ export default function RutinaTracker() {
                       <button
                         type="button"
                         onMouseDown={(e) => startTimerButtonLongPress(e, ex)}
-                        onMouseUp={() => { endTimerButtonLongPress(); handleTimerButtonClick(ex); }}
-                        onMouseLeave={() => endTimerButtonLongPress()}
+                        onMouseMove={handleTimerPointerMove}
+                        onMouseUp={() => handleTimerPointerUp(ex)}
+                        onMouseLeave={() => {
+                          endTimerButtonLongPress();
+                          timerPointerStartRef.current = null;
+                          timerDragDetectedRef.current = false;
+                        }}
                         onTouchStart={(e) => startTimerButtonLongPress(e, ex)}
-                        onTouchEnd={() => { endTimerButtonLongPress(); handleTimerButtonClick(ex); }}
+                        onTouchMove={handleTimerPointerMove}
+                        onTouchEnd={() => handleTimerPointerUp(ex)}
                         onContextMenu={(e) => { e.preventDefault(); timerSuppressClickRef.current = true; setTimerConfigTemp(loadRestConfig(ex.id, ex.name)); setTimerConfigOpen(ex.id); }}
                         className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
                         title="Temporizador descanso"
@@ -1934,13 +2036,44 @@ export default function RutinaTracker() {
                         </div>
                       </div>
 
-                      <ChevronDown
-                        size={18}
-                        onClick={() => setExpanded(isOpen ? null : ex.id)}
-                        className={`text-neutral-500 cursor-pointer transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      />
+                      <button
+                        type="button"
+                        aria-label={isOpen ? "Contraer ejercicio" : "Expandir ejercicio"}
+                        className="relative z-30 flex h-11 w-11 -ml-1 -mr-1 items-center justify-center rounded-full border border-transparent bg-transparent text-neutral-500 transition-colors hover:bg-[#2a2c30] hover:text-neutral-200"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onTouchStart={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (exerciseMenuOpen === ex.id) {
+                            setExerciseMenuOpen(null);
+                            return;
+                          }
+                          setExpanded(isOpen ? null : ex.id);
+                        }}
+                      >
+                        <ChevronDown
+                          size={18}
+                          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        />
+                      </button>
                     </div>
                   </div>
+
+                  {showTimer && activeTimerExercise === ex.id && (
+                    <div className="px-3 pb-2">
+                      <RestTimer
+                        exerciseName={ex.name}
+                        seconds={timerSeconds}
+                        vibrate={timerOpts.vibrate}
+                        sound={timerOpts.sound}
+                        inline
+                        onClose={() => {
+                          setShowTimer(false);
+                          setActiveTimerExercise(null);
+                        }}
+                      />
+                    </div>
+                  )}
 
                   {isOpen && !isEditMode && (
                     <div className="px-4 pb-4 border-t border-neutral-800 pt-3">
@@ -2131,23 +2264,47 @@ export default function RutinaTracker() {
       </div>
 
       {backExitNotice && (
-        <div className="fixed inset-x-4 bottom-6 z-[80] flex justify-center">
+        <div
+          id="app-exit-toast"
+          className="fixed inset-x-4 bottom-6 z-[80] flex justify-center transition-opacity duration-500 ease-out"
+          style={{ opacity: backExitNoticeVisible ? 1 : 0 }}
+          onClick={() => dismissBackExitNotice(true)}
+        >
           <div className="rounded-full border border-neutral-700 bg-[#111214]/95 px-4 py-2 text-center text-[11px] font-medium text-neutral-200 shadow-lg backdrop-blur-sm">
             {backExitNotice}
           </div>
         </div>
       )}
     </div>
-      {showTimer && (
-        <RestTimer
-          seconds={timerSeconds}
-          vibrate={timerOpts.vibrate}
-          sound={timerOpts.sound}
-          onClose={() => {
-            setShowTimer(false);
-            setActiveTimerExercise(null);
-          }}
-        />
+      {timerConfirmExercise && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+            <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
+            <p className="text-sm text-neutral-300">
+              ¿Querés iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise.name}</span>?
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTimerConfirmExercise(null)}
+                className="flex-1 min-h-[44px] rounded-xl bg-neutral-800 px-3 py-2 text-sm font-bold text-neutral-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ex = timerConfirmExercise;
+                  setTimerConfirmExercise(null);
+                  openTimerForExercise(ex.id, ex.name);
+                }}
+                className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
+              >
+                Iniciar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {timerConfigOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
