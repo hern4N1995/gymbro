@@ -1,6 +1,6 @@
 {
-  "name": "Gymbro Routine",
-  "short_name": "Gymbro",
+  "name": "GymBro",
+  "short_name": "GymBro",
   "description": "Seguimiento de rutina de gimnasio y registro de series",
   "start_url": "/",
   "scope": "/",
@@ -10,6 +10,12 @@
   "theme_color": "#111214",
   "lang": "es-AR",
   "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
     {
       "src": "/android-chrome-192x192.png",
       "sizes": "192x192",

@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'android-chrome-192x192.png', 'android-chrome-512x512.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Gym Routine Tracker',
-        short_name: 'Rutina',
+        name: 'GymBro',
+        short_name: 'GymBro',
         description: 'Mi app de rutina de gimnasio',
         theme_color: '#111214',
         background_color: '#111214',
@@ -18,6 +18,12 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
+          {
+            src: 'icon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          },
           {
             src: 'android-chrome-192x192.png',
             sizes: '192x192',
