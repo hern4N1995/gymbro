@@ -217,16 +217,100 @@ export default function RutinaTracker() {
   }, [errorMsg]);
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [backExitNotice, setBackExitNotice] = useState('');
   const [profileName, setProfileName] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [performanceAlert, setPerformanceAlert] = useState(null);
   const pillsRef = React.useRef(null);
   const [showRightFade, setShowRightFade] = useState(false);
   const rafRef = React.useRef(null);
+  const exitPromptTimerRef = React.useRef(null);
   const [openFromManage, setOpenFromManage] = useState(false);
   const [exerciseMenuOpen, setExerciseMenuOpen] = useState(null);
   const exerciseMenuRefs = React.useRef({});
   const exerciseMenuPanelRef = React.useRef(null);
+
+  const closeTopLevelOverlay = useCallback(() => {
+    if (showCreateDaySheet) {
+      setShowCreateDaySheet(false);
+      return true;
+    }
+    if (showManageDay) {
+      setShowManageDay(false);
+      return true;
+    }
+    if (showProfile) {
+      setShowProfile(false);
+      return true;
+    }
+    if (showAnalytics) {
+      setShowAnalytics(false);
+      return true;
+    }
+    if (timerConfigOpen) {
+      setTimerConfigOpen(null);
+      return true;
+    }
+    if (showHistoryModal) {
+      setShowHistoryModal(null);
+      return true;
+    }
+    if (dayActionMenu) {
+      setDayActionMenu(null);
+      return true;
+    }
+    if (exerciseMenuOpen) {
+      setExerciseMenuOpen(null);
+      return true;
+    }
+    if (menuOpen) {
+      setMenuOpen(false);
+      return true;
+    }
+    if (showTimer) {
+      setShowTimer(false);
+      setActiveTimerExercise(null);
+      return true;
+    }
+    return false;
+  }, [dayActionMenu, exerciseMenuOpen, menuOpen, showAnalytics, showCreateDaySheet, showHistoryModal, showManageDay, showProfile, showTimer, timerConfigOpen]);
+
+  useEffect(() => {
+    const handleBackButton = (event) => {
+      event.preventDefault();
+      const handled = closeTopLevelOverlay();
+      if (handled) {
+        window.history.pushState(null, '', window.location.href);
+        return;
+      }
+
+      if (!backExitNotice) {
+        setBackExitNotice('Presioná atrás otra vez para salir');
+        if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
+        exitPromptTimerRef.current = setTimeout(() => setBackExitNotice(''), 1800);
+        window.history.pushState(null, '', window.location.href);
+        return;
+      }
+
+      setBackExitNotice('');
+      try {
+        if (navigator.app && navigator.app.exitApp) {
+          navigator.app.exitApp();
+        } else if (window.close) {
+          window.close();
+        }
+      } catch (e) {
+        console.warn('No se pudo cerrar la app desde el navegador', e);
+      }
+    };
+
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handleBackButton);
+    return () => {
+      window.removeEventListener('popstate', handleBackButton);
+      if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
+    };
+  }, [backExitNotice, closeTopLevelOverlay]);
 
   useEffect(() => {
     if (!exerciseMenuOpen) return;
@@ -1932,6 +2016,14 @@ export default function RutinaTracker() {
           </div>
         )}
       </div>
+
+      {backExitNotice && (
+        <div className="fixed inset-x-4 bottom-6 z-[80] flex justify-center">
+          <div className="rounded-full border border-neutral-700 bg-[#111214]/95 px-4 py-2 text-center text-[11px] font-medium text-neutral-200 shadow-lg backdrop-blur-sm">
+            {backExitNotice}
+          </div>
+        </div>
+      )}
     </div>
       {showTimer && (
         <RestTimer
