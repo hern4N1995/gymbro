@@ -1,24 +1,77 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 
 export default function RestTimer({ seconds = 90, onClose, vibrate = true, sound = true, inline = false, exerciseName = "" }) {
   const [timeLeft, setTimeLeft] = useState(seconds);
   const [running, setRunning] = useState(true);
   const intervalRef = useRef(null);
-  const alarmRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const audioBufferRef = useRef(null);
+  const readyPromiseRef = useRef(null);
 
-  useEffect(() => {
-    if (!alarmRef.current) {
-      alarmRef.current = new Audio('/alarm.m4a');
-      alarmRef.current.preload = 'auto';
+  const ensureAlarmReady = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContextCtor();
     }
 
-    return () => {
-      if (alarmRef.current) {
-        alarmRef.current.pause();
-        alarmRef.current.currentTime = 0;
-      }
-    };
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch (e) {}
+    }
+
+    if (!audioBufferRef.current && !readyPromiseRef.current) {
+      readyPromiseRef.current = (async () => {
+        const response = await fetch('/alarm.m4a');
+        const arrayBuffer = await response.arrayBuffer();
+        audioBufferRef.current = await ctx.decodeAudioData(arrayBuffer.slice(0));
+      })();
+    }
+
+    if (readyPromiseRef.current) {
+      await readyPromiseRef.current;
+    }
   }, []);
+
+  const playAlarm = useCallback(async () => {
+    try {
+      await ensureAlarmReady();
+      const ctx = audioCtxRef.current;
+      const buffer = audioBufferRef.current;
+      if (!ctx || !buffer) return;
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0.9;
+
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      source.start();
+    } catch (e) {
+      console.warn('No se pudo reproducir la alarma del temporizador', e);
+    }
+  }, [ensureAlarmReady]);
+
+  useEffect(() => {
+    const unlock = () => {
+      ensureAlarmReady().catch(() => {});
+    };
+
+    document.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    document.addEventListener('touchstart', unlock, { once: true, passive: true });
+
+    return () => {
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('touchstart', unlock);
+    };
+  }, [ensureAlarmReady]);
 
   useEffect(() => {
     setTimeLeft(seconds);
@@ -40,13 +93,7 @@ export default function RestTimer({ seconds = 90, onClose, vibrate = true, sound
     setRunning(false);
 
     if (sound) {
-      try {
-        const audio = alarmRef.current || new Audio('/alarm.m4a');
-        alarmRef.current = audio;
-        audio.currentTime = 0;
-        audio.volume = 0.9;
-        audio.play().catch(() => {});
-      } catch (e) {}
+      playAlarm();
     }
 
     if (vibrate) {
