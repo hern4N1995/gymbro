@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History } from "lucide-react";
+import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User } from "lucide-react";
+import InfoModal from "./src/components/InfoModal";
+import { PrimaryButton, SecondaryButton } from "./src/components/Button";
 import supabase from "./supabaseClient";
 import RestTimer from "./src/components/RestTimer";
 import ProfileModal from "./src/components/ProfileModal";
@@ -14,6 +16,8 @@ const PLATE = {
   mie: { hex: "#F2C230", label: "15", sub: "Pierna" },
   jue: { hex: "#2E9E5B", label: "10", sub: "Empuje B" },
   vie: { hex: "#C9CDD3", label: "5", sub: "Tracción B" },
+  sab: { hex: "#8B5CF6", label: "S", sub: "Sábado" },
+  dom: { hex: "#FB7185", label: "D", sub: "Domingo" },
 };
 
 // Rutina por defecto si el usuario no tiene ninguna guardada
@@ -75,6 +79,16 @@ const DEFAULT_ROUTINE = [
       { id: "vie-curl-inclinado", name: "Curl inclinado c/mancuerna", sets: 2, reps: "12-15", rir: "1", rest: "60-90s" },
     ],
   },
+  {
+    id: "sab",
+    label: "Sábado",
+    exercises: [],
+  },
+  {
+    id: "dom",
+    label: "Domingo",
+    exercises: [],
+  },
 ];
 
 const todayISO = () => {
@@ -89,8 +103,25 @@ const displayDate = (iso) => {
 };
 
 const defaultDayId = () => {
-  const map = { 1: "lun", 2: "mar", 3: "mie", 4: "jue", 5: "vie" };
+  const map = { 0: "dom", 1: "lun", 2: "mar", 3: "mie", 4: "jue", 5: "vie", 6: "sab" };
   return map[new Date().getDay()] || "lun";
+};
+
+const getWeekDateNumberForDayId = (dayId) => {
+  // Calculate the date number (day of month) for the current week's dayId (lun..dom)
+  const mapIndex = { lun: 1, mar: 2, mie: 3, jue: 4, vie: 5, sab: 6, dom: 0 };
+  const targetIndex = mapIndex[dayId] ?? 1;
+  const today = new Date();
+  // Compute Monday of current week
+  const monday = new Date(today);
+  const dayOfWeek = today.getDay(); // 0 (Sun) - 6 (Sat)
+  const offsetToMonday = (dayOfWeek + 6) % 7; // 0 if Monday
+  monday.setDate(today.getDate() - offsetToMonday);
+  // monday is Monday; compute target date
+  const base = new Date(monday);
+  const add = (targetIndex + 6) % 7; // convert 1..6,0 -> 0..6 offset relative to Monday
+  base.setDate(monday.getDate() + add);
+  return base.getDate();
 };
 
 const uniqueById = (arr) => {
@@ -107,20 +138,36 @@ const uniqueById = (arr) => {
 };
 
 export default function RutinaTracker() {
-  const [routine, setRoutine] = useState(DEFAULT_ROUTINE);
-  const [selectedDay, setSelectedDay] = useState(defaultDayId());
+  const [routine, setRoutine] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null);
   const [history, setHistory] = useState({});
   const [expanded, setExpanded] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingEx, setEditingEx] = useState(null);
+  const [showManageDay, setShowManageDay] = useState(false);
+  const [showCreateDaySheet, setShowCreateDaySheet] = useState(false);
+  const [createDayId, setCreateDayId] = useState('');
+  const [createDayTitle, setCreateDayTitle] = useState('');
+  const [manageSelectedDay, setManageSelectedDay] = useState(null);
+  const [manageDayTitle, setManageDayTitle] = useState('');
+  const [dayActionMenu, setDayActionMenu] = useState(null);
+  const [dayTitles, setDayTitles] = useState({});
   const [drafts, setDrafts] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
   const [session, setSession] = useState(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
+  const [activeTimerExercise, setActiveTimerExercise] = useState(null);
+  const [timerOpts, setTimerOpts] = useState({ vibrate: true, sound: true });
+  const [restConfigs, setRestConfigs] = useState({});
+  const [timerConfigOpen, setTimerConfigOpen] = useState(null); // exerciseId
+  const [timerConfigTemp, setTimerConfigTemp] = useState({ seconds: 0, vibrate: true, sound: true });
+  const timerLongPressRef = React.useRef(null);
+  const timerSuppressClickRef = React.useRef(false);
   const [loadingRoutine, setLoadingRoutine] = useState(false);
+  const [info, setInfo] = useState(null);
   const wakeLockRef = React.useRef(null);
 
   // Wake Lock: request while rest timer visible
@@ -170,7 +217,39 @@ export default function RutinaTracker() {
   }, [errorMsg]);
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [performanceAlert, setPerformanceAlert] = useState(null);
+  const pillsRef = React.useRef(null);
+  const [showRightFade, setShowRightFade] = useState(false);
+  const rafRef = React.useRef(null);
+  const [openFromManage, setOpenFromManage] = useState(false);
+  const [exerciseMenuOpen, setExerciseMenuOpen] = useState(null);
+  const exerciseMenuRefs = React.useRef({});
+  const exerciseMenuPanelRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!exerciseMenuOpen) return;
+
+    const handlePointerDown = (event) => {
+      const trigger = exerciseMenuRefs.current[exerciseMenuOpen];
+      const menuNode = exerciseMenuPanelRef.current;
+      const target = event.target;
+
+      if (trigger && trigger.contains(target)) return;
+      if (menuNode && menuNode.contains(target)) return;
+
+      setExerciseMenuOpen(null);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [exerciseMenuOpen]);
 
   // Auth listener: mantiene `session` actualizado
   useEffect(() => {
@@ -197,6 +276,92 @@ export default function RutinaTracker() {
     };
   }, []);
 
+  // Detect overflow on the pills row to show a subtle fade indicating more content
+  // Only show the fade when there is actually content out of view. Re-evaluate
+  // on mount, when `routine` changes, on scroll, resize and DOM mutation.
+  useEffect(() => {
+    const tol = 2; // tolerance in px to avoid rounding glitches
+    const getNode = () => pillsRef.current;
+
+    const check = () => {
+      const node = getNode();
+      if (!node) return setShowRightFade(false);
+      const scrollWidth = node.scrollWidth;
+      const clientWidth = node.clientWidth;
+      const scrollLeft = node.scrollLeft;
+      const style = window.getComputedStyle(node);
+      const paddingRight = parseFloat(style.paddingRight || '0') || 0;
+      const rawDiff = scrollWidth - (clientWidth + scrollLeft);
+      const FADE_RESERVED_PADDING = paddingRight || 24; // px reserved by pr-6
+      const contentScrollWidth = Math.max(0, scrollWidth - FADE_RESERVED_PADDING);
+      const contentRawDiff = contentScrollWidth - (clientWidth + scrollLeft);
+      const needs = contentScrollWidth > (clientWidth + scrollLeft + tol);
+      setShowRightFade(Boolean(needs));
+    };
+
+    // initial check
+    check();
+
+    const node = getNode();
+    // Schedule checks via requestAnimationFrame to align with paint and avoid
+    // reflow/render jitter when scrolling quickly.
+    const onScroll = () => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        check();
+      });
+    };
+    const onResize = () => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        check();
+      });
+    };
+    if (node) node.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize);
+
+    const mo = node ? new MutationObserver(check) : null;
+    if (mo && node) mo.observe(node, { childList: true, subtree: true });
+
+    return () => {
+      try { if (node) node.removeEventListener('scroll', onScroll); } catch {}
+      try { window.removeEventListener('resize', onResize); } catch {}
+      try { if (rafRef.current) cancelAnimationFrame(rafRef.current); } catch {}
+      try { if (mo) mo.disconnect(); } catch {}
+    };
+  }, [routine]);
+
+  // Load profile display name
+  useEffect(() => {
+    let mounted = true;
+    const loadName = async () => {
+      if (!session || !session.user) return setProfileName('');
+      try {
+        const { data } = await supabase.from('profiles').select('name').eq('id', session.user.id).maybeSingle();
+        if (!mounted) return;
+        const candidate = (data && data.name) || session.user.user_metadata?.full_name || '';
+        if (candidate && candidate.trim()) {
+          setProfileName(candidate);
+        } else if (session.user.email) {
+          // Derivar nombre desde email: nombre.apellido -> Nombre Apellido
+          const local = session.user.email.split('@')[0] || session.user.email;
+          const derived = local.replace(/[._]/g, ' ').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+          setProfileName(derived);
+        } else {
+          setProfileName('Usuario');
+        }
+      } catch (e) {
+        console.error('Error loading profile name', e);
+        const fallback = session.user.user_metadata?.full_name || session.user.email || 'Usuario';
+        setProfileName(fallback);
+      }
+    };
+    loadName();
+    return () => { mounted = false; };
+  }, [session]);
+
   // Cargar estructura: si hay sesión, cargar desde Supabase; si no, desde localStorage
   useEffect(() => {
     const loadFromLocal = () => {
@@ -215,31 +380,36 @@ export default function RutinaTracker() {
       try {
         const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", userId);
         if (error) throw error;
-        if (!data || data.length === 0) {
-          // Sembrar rutina por defecto en la tabla para este usuario
-          const toInsert = DEFAULT_ROUTINE.flatMap((d) =>
-            d.exercises.map((ex) => ({ user_id: userId, day_id: d.id, exercise_id: ex.id, exercise_name: ex.name, name: ex.name, sets: ex.sets, reps: ex.reps, rir: ex.rir, rest: ex.rest, muscle_group: EXERCISE_MUSCLE_MAP[ex.id] || 'Otros' }))
-          );
-          const { data: inserted, error: insErr } = await supabase.from("rutinas_usuario").insert(toInsert).select();
-          if (insErr) throw insErr;
-          // Normalize inserted rows so UI uses exercise_id as `id` when present
-          const normalizedInserted = uniqueById((inserted || []).map(r => ({ ...r, id: r.exercise_id || r.id })));
-          // Agrupar por día
-          const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: uniqueById(normalizedInserted.filter((r) => r.day_id === d.id)) }));
-          setRoutine(grouped);
-          return;
-        }
+
+        // Always fetch day titles too — even if `rutinas_usuario` is empty we may have
+        // entries in `dias_usuario` that should be shown as empty days.
+        const { data: diasData } = await supabase.from('dias_usuario').select('*').eq('user_id', userId);
+        const titleMap = (diasData || []).reduce((m, r) => { m[r.day_id] = r.title; return m; }, {});
+        setDayTitles(titleMap);
+
         // Normalize fetched rows so UI uses exercise_id as `id` when present
-        const normalized = uniqueById((data || []).map(r => ({ ...r, id: r.exercise_id || r.id })));
-        // Agrupar filas por day_id en la estructura esperada
-        const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: uniqueById(normalized.filter((r) => r.day_id === d.id)) }));
-        setRoutine(grouped);
+        const normalized = uniqueById(((data || [])).map(r => ({ ...r, id: r.exercise_id || r.id })));
+
+        // Determine which day_ids actually exist in the DB (either via exercises or via saved titles)
+        const explicitDayIds = Array.from(new Set((normalized || []).map(r => r.day_id))).filter(Boolean);
+        const titleOnlyIds = (diasData || []).map(d => d.day_id).filter(Boolean);
+        const dayIds = Array.from(new Set([...(explicitDayIds || []), ...(titleOnlyIds || [])]));
+
+        if (dayIds.length === 0) {
+          // No exercises nor saved day titles in Supabase: for authenticated
+          // users we want an empty routine (no preloaded DEFAULT_ROUTINE).
+          setRoutine([]);
+          setSelectedDay(null);
+        } else {
+          const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+          const grouped = dayIds.map(id => ({ id, label: labelMap[id] || id, exercises: uniqueById(normalized.filter(r => r.day_id === id)), sub: titleMap[id] || '' }));
+          setRoutine(sortRoutine(grouped));
+        }
       } catch (e) {
         console.error("Error cargando rutina desde Supabase", e);
         setErrorMsg('Error cargando rutina: ' + (e.message || e));
         loadFromLocal();
-      }
-      finally {
+      } finally {
         setLoadingRoutine(false);
       }
     };
@@ -268,10 +438,280 @@ export default function RutinaTracker() {
     }
   }, []);
 
-  const day = routine.find((d) => d.id === selectedDay) || routine[0];
+  const day = routine.find((d) => d.id === selectedDay) || routine[0] || null;
   const plate = PLATE[selectedDay] || PLATE["lun"];
 
+  const WEEK_ORDER = ['lun','mar','mie','jue','vie','sab','dom'];
+  const DAY_LABEL_MAP = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+  const WEEKDAY_OPTIONS = WEEK_ORDER.map((id) => ({ id, label: DAY_LABEL_MAP[id] || id }));
+  const availableWeekdays = WEEK_ORDER.filter((id) => !routine.some((d) => d.id === id));
+  const existingRoutineDays = routine.map((d) => ({ id: d.id, label: d.label }));
+  const currentDayLabel = day ? String(day.label || '').toUpperCase() : '';
+  const currentDaySub = day && day.sub ? String(day.sub).toUpperCase() : '';
+
+  // Auto-select the most appropriate day after `routine` finishes loading.
+  // Priority:
+  // 1) If today's weekday exists in `routine`, select it.
+  // 2) Otherwise pick the next chronological weekday that exists in `routine`,
+  //    wrapping around the week if necessary.
+  // 3) If `routine` is empty, leave selection as null.
   useEffect(() => {
+    if (!routine || routine.length === 0) {
+      if (selectedDay !== null) setSelectedDay(null);
+      return;
+    }
+
+    // If the current selection is still valid, keep it.
+    if (selectedDay && routine.some((d) => d.id === selectedDay)) return;
+
+    const todayId = defaultDayId();
+    // If today's day exists in the routine, pick it.
+    if (routine.some((d) => d.id === todayId)) {
+      setSelectedDay(todayId);
+      return;
+    }
+
+    // Otherwise, scan forward through the week to find the next available day.
+    const startIdx = WEEK_ORDER.indexOf(todayId);
+    for (let i = 1; i < 7; i++) {
+      const candidate = WEEK_ORDER[(startIdx + i) % 7];
+      if (routine.some((d) => d.id === candidate)) {
+        setSelectedDay(candidate);
+        return;
+      }
+    }
+
+    // Fallback: if for some reason nothing matched, pick the first available day.
+    if (routine.length > 0) setSelectedDay(routine[0].id);
+  }, [routine]);
+
+  const sortRoutine = (arr) => {
+    return [...arr].sort((a,b)=> WEEK_ORDER.indexOf(a.id) - WEEK_ORDER.indexOf(b.id));
+  };
+
+  const addDay = (dayId, title = '') => {
+    if (routine.find(d=>d.id===dayId)) return;
+    const newDay = { id: dayId, label: DAY_LABEL_MAP[dayId] || dayId, sub: title || '', exercises: [] };
+    const newRoutine = sortRoutine([...routine, newDay]);
+    saveRoutineStructure(newRoutine);
+    setSelectedDay(dayId);
+  };
+
+  const openCreateDaySheet = () => {
+    const nextAvailable = WEEK_ORDER.filter((id) => !routine.some((d) => d.id === id));
+    if (!nextAvailable.length) {
+      setErrorMsg('Ya usaste todos los weekdays disponibles.');
+      return;
+    }
+    setCreateDayId(nextAvailable[0]);
+    setCreateDayTitle('');
+    setShowCreateDaySheet(true);
+  };
+
+  const openManageDaySheet = (dayId = null) => {
+    if (!routine.length) return;
+    const current = dayId || selectedDay || routine[0]?.id || null;
+    if (!current) return;
+    setManageSelectedDay(current);
+    setManageDayTitle((current && (dayTitles[current] ?? routine.find((d) => d.id === current)?.sub ?? '')) || '');
+    setShowManageDay(true);
+    setIsEditMode(false);
+    setEditingEx(null);
+    setExpanded(null);
+  };
+
+  const longPressTimerRef = React.useRef(null);
+  const suppressClickRef = React.useRef(false);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const closeDayActionMenu = () => {
+    setDayActionMenu(null);
+  };
+
+  const openDayActionMenu = (dayId) => {
+    setDayActionMenu(dayId);
+  };
+
+  const startLongPress = (event, dayId) => {
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      suppressClickRef.current = true;
+      openDayActionMenu(dayId);
+    }, 500);
+  };
+
+  const endLongPress = () => {
+    clearLongPressTimer();
+  };
+
+  useEffect(() => {
+    if (!dayActionMenu) return;
+
+    const handlePointerDown = (event) => {
+      const menuEl = document.getElementById(`day-action-row-${dayActionMenu}`);
+      const anchorEl = document.querySelector(`[data-pill-day-id="${dayActionMenu}"]`);
+      const target = event.target;
+      if (menuEl && !menuEl.contains(target) && (!anchorEl || !anchorEl.contains(target))) {
+        closeDayActionMenu();
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [dayActionMenu]);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, []);
+
+  const handlePillClick = (dayId) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    setSelectedDay(dayId);
+    setExpanded(null);
+    setEditingEx(null);
+  };
+
+  const handlePillMouseDown = (event, dayId) => {
+    if (event.button !== 0 && event.button !== undefined) return;
+    startLongPress(event, dayId);
+  };
+
+  const handlePillTouchStart = (event, dayId) => {
+    if (event.touches && event.touches.length > 1) {
+      endLongPress();
+      return;
+    }
+    startLongPress(event, dayId);
+  };
+
+  const handlePillTouchMove = () => {
+    endLongPress();
+  };
+
+  const handlePillMouseUp = () => {
+    endLongPress();
+  };
+
+  const handlePillMouseLeave = () => {
+    endLongPress();
+  };
+
+  const handlePillContextMenu = (event, dayId) => {
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClickRef.current = true;
+    openDayActionMenu(dayId);
+  };
+
+  const handleEditFromDayAction = (dayId) => {
+    closeDayActionMenu();
+    openManageDaySheet(dayId);
+  };
+
+  const handleDeleteFromDayAction = (dayId) => {
+    closeDayActionMenu();
+    removeDay(dayId);
+  };
+
+  const handleAddExerciseFromDayAction = (dayId) => {
+    closeDayActionMenu();
+    setSelectedDay(dayId);
+    setOpenFromManage(false);
+    setIsEditMode(true);
+    setEditingEx(null);
+    setExpanded(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCreateDay = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const fd = new FormData(form);
+    const dayId = fd.get('new_day_id') || createDayId;
+    const title = String(fd.get('new_day_title') || createDayTitle || '').trim();
+    if (!dayId) return;
+    if (routine.find(d=>d.id===dayId)) {
+      setErrorMsg('Ese día ya existe en la rutina.');
+      return;
+    }
+    const nextRoutine = sortRoutine([...routine, { id: String(dayId), label: DAY_LABEL_MAP[String(dayId)] || String(dayId), sub: title, exercises: [] }]);
+    // If user is logged, attempt to persist title in Supabase first. Only
+    // update local state if the upsert succeeds. For local-only users,
+    // proceed optimistically.
+    if (session && session.user) {
+      try {
+        const { error } = await supabase.from('dias_usuario').upsert({ user_id: session.user.id, day_id: String(dayId), title: title || '' }, { onConflict: ['user_id','day_id'] });
+        if (error) throw error;
+        // Persist locally and update UI only after remote save succeeded
+        saveRoutineStructure(nextRoutine);
+        setSelectedDay(String(dayId));
+        setShowCreateDaySheet(false);
+        setCreateDayId('');
+        setCreateDayTitle('');
+      } catch (e) {
+        console.error('No se pudo persistir el día en Supabase', e);
+        setErrorMsg('No se pudo guardar el día en la nube. Reintentá más tarde.');
+        // Do NOT touch local state here: keep the sheet open so the user can retry.
+      }
+    } else {
+      // Local-only workflow
+      addDay(String(dayId), title);
+      setShowCreateDaySheet(false);
+      setCreateDayId('');
+      setCreateDayTitle('');
+    }
+  };
+
+  const removeDay = async (dayId) => {
+    const ok = window.confirm(`Eliminar "${(routine.find(d=>d.id===dayId)||{}).label || dayId}" y sus ejercicios?`);
+    if (!ok) return;
+    // If user has session, remove rows from Supabase for that day
+    if (session && session.user) {
+      try {
+        const { error } = await supabase.from('rutinas_usuario').delete().eq('user_id', session.user.id).eq('day_id', dayId);
+        if (error) throw error;
+        // Remove stored day title as well
+        try {
+          await supabase.from('dias_usuario').delete().eq('user_id', session.user.id).eq('day_id', dayId);
+        } catch (e) {
+          console.warn('No se pudo eliminar título de día en BD', e);
+        }
+      } catch (e) {
+        console.error('Error eliminando día en Supabase', e);
+        setErrorMsg('No se pudo eliminar el día en la nube.');
+        return;
+      }
+      // Also remove the day from local routine structure and persist
+      const newRoutine = routine.filter((d) => d.id !== dayId);
+      saveRoutineStructure(newRoutine);
+    } else {
+      const newRoutine = routine.filter((d) => d.id !== dayId);
+      saveRoutineStructure(newRoutine);
+    }
+    if (selectedDay === dayId) setSelectedDay((routine.find(r=>r.id!==dayId) || {}).id || null);
+  };
+
+  useEffect(() => {
+    if (!day) {
+      setHistory((prev) => ({ ...prev }));
+      return;
+    }
     const newHistory = {};
     day.exercises.forEach((ex) => {
       newHistory[ex.id] = loadExerciseHistory(ex.id);
@@ -376,9 +816,9 @@ export default function RutinaTracker() {
     (async () => {
       try {
         const exObj = routine.flatMap((d) => d.exercises).find((e) => e.id === exerciseId);
+        // Do not auto-start rest timer after saving a set.
+        // Timer should be started manually by the user per exercise.
         const restSec = restDefaultByExercise(exObj?.name || "");
-        setTimerSeconds(restSec);
-        setShowTimer(true);
 
         if (session && session.user) {
           await supabase.from('historial').insert({ user_id: session.user.id, exercise_id: exerciseId, date: today, weight, reps, rir: rir || null, notes: notes || null });
@@ -404,6 +844,8 @@ export default function RutinaTracker() {
     e.preventDefault();
     const formData = new FormData(e.target);
     const name = formData.get("name");
+    const dayId = formData.get("day_id") || selectedDay;
+    // day titles are managed separately in 'Gestionar días'
     const sets = parseInt(formData.get("sets"), 10);
     const reps = formData.get("reps");
     const rir = formData.get("rir");
@@ -414,55 +856,80 @@ export default function RutinaTracker() {
 
     if (session && session.user) {
       try {
+        console.log('[handleSaveExercise] session?.access_token =', session?.access_token);
         if (editingEx && editingEx.id) {
           // Actualizar ejercicio en Supabase
-          const { data: updated, error: updErr } = await supabase
-            .from("rutinas_usuario")
-            .update({ name, sets, reps, rir, rest, day_id: selectedDay, muscle_group: formMuscle })
-            .eq("id", editingEx.id)
-            .select()
-            .single();
+          // editingEx.id may be either the DB `id` (uuid) or the custom `exercise_id` string.
+          // Use the appropriate filter to avoid Postgres UUID parse errors.
+          const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+          const isUuid = String(editingEx.id).match(uuidRegex);
+          let query = supabase.from("rutinas_usuario").update({ name, exercise_name: name, sets, reps, rir, rest, day_id: dayId, muscle_group: formMuscle }).select().single();
+          query = isUuid ? query.eq("id", editingEx.id) : query.eq("exercise_id", editingEx.id);
+          const { data: updated, error: updErr } = await query;
           if (updErr) throw updErr;
         } else {
           // Insertar nuevo ejercicio en Supabase
+          const newExerciseId = `${dayId}-${Date.now()}`;
+          const toInsert = { user_id: session.user.id, day_id: dayId, exercise_id: newExerciseId, name, exercise_name: name, sets, reps, rir, rest, muscle_group: formMuscle };
           const { data: inserted, error: insErr } = await supabase
             .from("rutinas_usuario")
-            .insert({ user_id: session.user.id, day_id: selectedDay, name, sets, reps, rir, rest, muscle_group: formMuscle })
+            .insert(toInsert)
             .select()
             .single();
           if (insErr) throw insErr;
         }
 
-        // Refrescar toda la rutina desde Supabase para mantener consistencia
+        // Day titles are managed in 'Gestionar días'.
+
+        // Refrescar toda la rutina desde Supabase y mostrar sólo los day_id presentes
         const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", session.user.id);
         if (error) throw error;
-        const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: data.filter((r) => r.day_id === d.id) }));
-        setRoutine(grouped);
+        const { data: diasData } = await supabase.from('dias_usuario').select('*').eq('user_id', session.user.id);
+        const titleMap = (diasData || []).reduce((m, r) => { m[r.day_id] = r.title; return m; }, {});
+        const normalized = uniqueById((data || []).map(r => ({ ...r, id: r.exercise_id || r.id })));
+        const explicitDayIds = Array.from(new Set((normalized || []).map(r => r.day_id))).filter(Boolean);
+        const titleOnlyIds = (diasData || []).map(d => d.day_id).filter(Boolean);
+        const dayIds = Array.from(new Set([...(explicitDayIds || []), ...(titleOnlyIds || [])]));
+        const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+        if (dayIds.length === 0) {
+          // No day ids found after saving — avoid showing DEFAULT_ROUTINE here
+          // as it can introduce weekdays the user didn't create (race condition
+          // on reads). Keep routine empty and select the target day.
+          setRoutine([]);
+          setSelectedDay(dayId);
+        } else {
+          const grouped = dayIds.map(id => ({ id, label: labelMap[id] || id, exercises: uniqueById(normalized.filter(r => r.day_id === id)), sub: titleMap[id] || '' }));
+          const sorted = sortRoutine(grouped);
+          setRoutine(sorted);
+          setSelectedDay(dayId);
+        }
+        setIsEditMode(false);
       } catch (err) {
         console.error("Error guardando ejercicio en Supabase", err);
-        setErrorMsg("No se pudo guardar el ejercicio en la nube.");
+        const msg = err?.message || (err && typeof err === 'string' ? err : JSON.stringify(err));
+        setErrorMsg("No se pudo guardar el ejercicio en la nube: " + msg);
       } finally {
         setEditingEx(null);
+        setOpenFromManage(false);
       }
     } else {
-      // Fallback local
-      const newRoutine = routine.map((d) => {
-        if (d.id !== selectedDay) return d;
+      // Fallback local: remove edited exercise from any day, then add/update in target dayId
+      let base = routine.map((d) => ({ ...d, exercises: d.exercises.filter((ex) => !(editingEx && editingEx.id && ex.id === editingEx.id)) }));
+      if (editingEx && editingEx.id) {
+        // update existing (keep same id)
+        base = base.map((d) => {
+          if (d.id !== dayId) return d;
+          return { ...d, exercises: [...d.exercises, { id: editingEx.id, name, sets, reps, rir, rest, muscle_group: formMuscle, day_id: dayId }] };
+        });
+      } else {
+        const newId = `${dayId}-${Date.now()}`;
+        base = base.map((d) => (d.id === dayId ? { ...d, exercises: [...d.exercises, { id: newId, name, sets, reps, rir, rest, muscle_group: formMuscle, day_id: dayId }] } : d));
+      }
 
-        let updatedExercises = [...d.exercises];
-        if (editingEx && editingEx.id) {
-          updatedExercises = updatedExercises.map((ex) =>
-            ex.id === editingEx.id ? { ...ex, name, sets, reps, rir, rest, muscle_group: formMuscle } : ex
-          );
-        } else {
-          const newId = `${selectedDay}-${Date.now()}`;
-          updatedExercises.push({ id: newId, name, sets, reps, rir, rest, muscle_group: formMuscle });
-        }
-        return { ...d, exercises: updatedExercises };
-      });
-
-      saveRoutineStructure(newRoutine);
+      // Titles are managed in 'Gestionar días'
+      saveRoutineStructure(base);
       setEditingEx(null);
+      setIsEditMode(false);
     }
   };
 
@@ -472,12 +939,38 @@ export default function RutinaTracker() {
 
     if (session && session.user) {
       try {
-        const { error } = await supabase.from("rutinas_usuario").delete().eq("id", exId);
+        // If exId is a numeric DB id, delete by `id`, otherwise delete by `exercise_id` string
+        const isNumericId = String(exId).match(/^\d+$/);
+        let res;
+        if (isNumericId) {
+          res = await supabase.from("rutinas_usuario").delete().eq("id", exId);
+        } else {
+          res = await supabase.from("rutinas_usuario").delete().eq("exercise_id", exId);
+        }
+        const { error } = res;
         if (error) throw error;
-        // Refrescar desde Supabase
-        const { data } = await supabase.from("rutinas_usuario").select("*").eq("user_id", session.user.id);
-        const grouped = DEFAULT_ROUTINE.map((d) => ({ ...d, exercises: data.filter((r) => r.day_id === d.id) }));
-        setRoutine(grouped);
+          // Refrescar desde Supabase y mostrar solo días presentes
+          const { data } = await supabase.from('rutinas_usuario').select('*').eq('user_id', session.user.id);
+          const { data: diasData } = await supabase.from('dias_usuario').select('*').eq('user_id', session.user.id);
+          const titleMap = (diasData || []).reduce((m, r) => { m[r.day_id] = r.title; return m; }, {});
+          const normalized = uniqueById((data || []).map(r => ({ ...r, id: r.exercise_id || r.id })));
+          const explicitDayIds = Array.from(new Set((normalized || []).map(r => r.day_id))).filter(Boolean);
+          const titleOnlyIds = (diasData || []).map(d => d.day_id).filter(Boolean);
+          const dayIds = Array.from(new Set([...(explicitDayIds || []), ...(titleOnlyIds || [])]));
+          const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+          if (dayIds.length === 0) {
+            // Avoid injecting DEFAULT_ROUTINE here (could introduce weekdays the
+            // user didn't create). Keep routine empty and pick a sensible selectedDay.
+            setRoutine([]);
+            const existingIds = [];
+            if (!existingIds.includes(selectedDay)) setSelectedDay('lun');
+          } else {
+            const grouped = dayIds.map(id => ({ id, label: labelMap[id] || id, exercises: uniqueById(normalized.filter(r => r.day_id === id)), sub: titleMap[id] || '' }));
+            const sorted = sortRoutine(grouped);
+            setRoutine(sorted);
+            const existingIds = sorted.map(g => g.id);
+            if (!existingIds.includes(selectedDay)) setSelectedDay((sorted[0] && sorted[0].id) || 'lun');
+          }
       } catch (err) {
         console.error("Error borrando ejercicio en Supabase", err);
         setErrorMsg("No se pudo eliminar el ejercicio en la nube.");
@@ -489,6 +982,55 @@ export default function RutinaTracker() {
       });
       saveRoutineStructure(newRoutine);
     }
+  };
+
+  const loadRestConfig = (exerciseId, exName) => {
+    try {
+      const raw = localStorage.getItem(`rest_config:${exerciseId}`);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { seconds: restDefaultByExercise(exName || ""), vibrate: true, sound: true };
+  };
+
+  const saveRestConfig = (exerciseId, cfg) => {
+    try {
+      localStorage.setItem(`rest_config:${exerciseId}`, JSON.stringify(cfg));
+      setRestConfigs((p) => ({ ...p, [exerciseId]: cfg }));
+    } catch (e) {}
+  };
+
+  const openTimerForExercise = (exerciseId, exName) => {
+    const cfg = loadRestConfig(exerciseId, exName);
+    setTimerSeconds(cfg.seconds);
+    setTimerOpts({ vibrate: cfg.vibrate ?? true, sound: cfg.sound ?? true });
+    setActiveTimerExercise(exerciseId);
+    setShowTimer(true);
+  };
+
+  const startTimerButtonLongPress = (event, ex) => {
+    if (event && event.button !== undefined && event.button !== 0) return;
+    if (timerLongPressRef.current) clearTimeout(timerLongPressRef.current);
+    timerLongPressRef.current = setTimeout(() => {
+      timerSuppressClickRef.current = true;
+      const cfg = loadRestConfig(ex.id, ex.name);
+      setTimerConfigTemp(cfg);
+      setTimerConfigOpen(ex.id);
+    }, 500);
+  };
+
+  const endTimerButtonLongPress = () => {
+    if (timerLongPressRef.current) {
+      clearTimeout(timerLongPressRef.current);
+      timerLongPressRef.current = null;
+    }
+  };
+
+  const handleTimerButtonClick = (ex) => {
+    if (timerSuppressClickRef.current) {
+      timerSuppressClickRef.current = false;
+      return;
+    }
+    openTimerForExercise(ex.id, ex.name);
   };
 
   const doReset = () => {
@@ -591,6 +1133,95 @@ export default function RutinaTracker() {
     );
   }
 
+  // Si el usuario no tiene días creados, cortar el flujo antes de cualquier acceso a day.exercises.
+  if (routine.length === 0) {
+    return (
+      <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-16 mobile-tight">
+        <div className="relative px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">
+              <Dumbbell size={13} strokeWidth={2.5} className="text-neutral-500" />
+              GYMBRO Rutinas
+            </div>
+            <div className="text-sm text-neutral-300">
+              <div className="font-semibold">Bienvenido {profileName || 'Usuario'}</div>
+              <div className="text-xs text-neutral-500">Hoy toca:</div>
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-tight leading-none truncate text-white">
+              <span className="text-white">&nbsp;</span>
+            </h1>
+          </div>
+        </div>
+
+        <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
+          <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
+          <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
+          <button
+            type="button"
+            onClick={openCreateDaySheet}
+            disabled={!availableWeekdays.length}
+            className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Crear primer día
+          </button>
+        </div>
+
+        {showCreateDaySheet && (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowCreateDaySheet(false);
+            }}
+          >
+            <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-bold text-white">Crear día</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateDaySheet(false)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+                  aria-label="Cerrar"
+                >
+                  <X size={18} className="shrink-0 leading-none" />
+                </button>
+              </div>
+              <form onSubmit={handleCreateDay} className="mt-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día de la semana</label>
+                  <select
+                    name="new_day_id"
+                    value={createDayId}
+                    onChange={(e) => setCreateDayId(e.target.value)}
+                    className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                  >
+                    {availableWeekdays.map((id) => (
+                      <option key={id} value={id}>{DAY_LABEL_MAP[id] || id}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título</label>
+                  <input
+                    name="new_day_title"
+                    value={createDayTitle}
+                    onChange={(e) => setCreateDayTitle(e.target.value)}
+                    placeholder="Ej: Empuje A"
+                    className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button type="button" onClick={() => setShowCreateDaySheet(false)} className="flex-1 min-h-[44px] rounded-xl bg-neutral-800 px-3 py-2 text-sm font-bold text-neutral-200">Cancelar</button>
+                  <button type="submit" className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black">Guardar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
     <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-16 mobile-tight">
@@ -599,40 +1230,36 @@ export default function RutinaTracker() {
           <div className="bg-[#0F1112] border border-neutral-800 rounded-lg p-4">Cargando rutina...</div>
         </div>
       )}
-      <div className="px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex items-center justify-between gap-3">
+      <div className="relative px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-1">
-            <Dumbbell size={13} strokeWidth={2.5} />
-            Rutina Personalizable
+          <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">
+            <Dumbbell size={13} strokeWidth={2.5} className="text-neutral-500" />
+            GYMBRO Rutinas
           </div>
-          <h1 className="text-2xl font-black uppercase tracking-tight leading-none truncate">
-            {day.label}
-            <span className="ml-2 text-base font-bold" style={{ color: plate.hex }}>
-              {plate.sub}
-            </span>
-          </h1>
+            <div className="text-sm text-neutral-300">
+              <div className="font-semibold">Bienvenido {profileName || 'Usuario'}</div>
+              <div className="text-xs text-neutral-500">Hoy toca:</div>
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-tight leading-none truncate text-white">
+              <span className="text-white">{currentDayLabel}</span>
+              <span className="ml-2 text-base font-bold" style={{ color: plate.hex }}>
+                {currentDaySub}
+              </span>
+            </h1>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-neutral-300 mr-2 truncate">{session?.user?.email}</div>
-          <button onClick={() => setShowProfile(true)} className="min-h-[36px] px-2 py-1 rounded border bg-[#1B1D21] text-neutral-300 text-xs">Perfil</button>
-          <button onClick={() => setShowAnalytics(true)} className="min-h-[36px] px-2 py-1 rounded border bg-[#1B1D21] text-neutral-300 text-xs">Analíticas</button>
-          
-          <button
-            onClick={() => {
-              setIsEditMode(!isEditMode);
-              setEditingEx(null);
-            }}
-            className={`min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${
-              isEditMode
-                ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
-                : "bg-[#1B1D21] border-neutral-800 text-neutral-400 hover:text-white"
-            }`}
-          >
-            <Settings size={16} />
-            {isEditMode ? "Listo" : "Editar"}
-          </button>
-          <button onClick={handleSignOut} className="min-h-[44px] px-3 py-2 rounded-xl border bg-[#1B1D21] text-neutral-300 text-xs">Cerrar Sesión</button>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20">
+          <div className="dropdown-root">
+            <SecondaryButton aria-label="Opciones" onClick={() => setMenuOpen(!menuOpen)} className="flex items-center justify-center text-xs font-bold w-11 h-11 p-0">
+              <User size={16} />
+            </SecondaryButton>
+            {menuOpen && (
+              <div className="dropdown-menu">
+                <button className="dropdown-item" onClick={() => { setShowProfile(true); setMenuOpen(false); }}><User size={14} /> Perfil</button>
+                <button className="dropdown-item" onClick={() => { setShowAnalytics(true); setMenuOpen(false); }}><Calendar size={14} /> Analíticas</button>
+                <button className="dropdown-item text-red-400 hover:text-red-300" onClick={() => { handleSignOut(); setMenuOpen(false); }}><X size={14} className="text-red-400" /> Cerrar Sesión</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {errorMsg && (
@@ -641,45 +1268,135 @@ export default function RutinaTracker() {
         </div>
       )}
 
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar">
-        {routine.map((d) => {
-          const p = PLATE[d.id] || { hex: "#888", label: "P", sub: "" };
-          const active = d.id === selectedDay;
-          return (
-            <button
-              key={d.id}
-              onClick={() => {
-                setSelectedDay(d.id);
-                setExpanded(null);
-                setEditingEx(null);
-              }}
-              className="shrink-0 min-h-[44px] flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-2 border transition-colors"
-              style={{
-                borderColor: active ? p.hex : "#2a2c30",
-                backgroundColor: active ? `${p.hex}1A` : "transparent",
-              }}
-            >
-              <span
-                className="flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-black"
-                style={{ backgroundColor: p.hex, color: p.hex === "#C9CDD3" || p.hex === "#F2C230" ? "#111214" : "#fff" }}
+          <div className="relative px-4">
+            <div className="flex items-center gap-2 py-3">
+              <div
+                ref={pillsRef}
+                className={`relative flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar ${routine.length <= 2 ? 'justify-center' : 'justify-start'}`}
+                style={{ paddingRight: 96 }}
               >
-                {p.label}
-              </span>
-              <span className={`text-xs font-bold uppercase tracking-wide ${active ? "text-neutral-100" : "text-neutral-500"}`}>
-                {d.label.slice(0, 3)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                {routine.map((d) => {
+                  const p = PLATE[d.id] || { hex: "#888", label: "P", sub: "" };
+                  const active = d.id === selectedDay;
+                  const isActionOpen = dayActionMenu === d.id;
+                  return (
+                    <div key={d.id} className="flex items-center -gap-1">
+                      <button
+                        type="button"
+                        data-pill-day-id={d.id}
+                        onClick={() => handlePillClick(d.id)}
+                        onMouseDown={(event) => handlePillMouseDown(event, d.id)}
+                        onMouseUp={handlePillMouseUp}
+                        onMouseLeave={handlePillMouseLeave}
+                        onTouchStart={(event) => handlePillTouchStart(event, d.id)}
+                        onTouchEnd={handlePillMouseUp}
+                        onTouchMove={handlePillTouchMove}
+                        onContextMenu={(event) => handlePillContextMenu(event, d.id)}
+                        className="relative z-0 shrink-0 min-h-[44px] min-w-[44px] flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-2 border transition-colors"
+                        style={{
+                          borderColor: active ? p.hex : "#2a2c30",
+                          backgroundColor: active ? `${p.hex}1A` : "transparent",
+                        }}
+                      >
+                        <span
+                          className="flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-black"
+                          style={{ backgroundColor: p.hex, color: p.hex === "#C9CDD3" || p.hex === "#F2C230" ? "#111214" : "#fff" }}
+                        >
+                          {getWeekDateNumberForDayId(d.id)}
+                        </span>
+                        <span className={`text-xs font-bold uppercase tracking-wide ${active ? "text-neutral-100" : "text-neutral-500"}`}>
+                          {d.label.slice(0, 3)}
+                        </span>
+                      </button>
+
+                      <div
+                        id={`day-action-row-${d.id}`}
+                        className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        style={{ width: isActionOpen ? '34px' : '0px', opacity: isActionOpen ? 1 : 0, zIndex: 10 }}
+                      >
+                        <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: isActionOpen ? 1 : 0 }}>
+                          <button
+                            type="button"
+                            aria-label="Editar día"
+                            title="Editar día"
+                            onClick={() => handleEditFromDayAction(d.id)}
+                            className="absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: isActionOpen ? 1 : 0 }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Agregar ejercicio al día"
+                            title="Agregar ejercicio"
+                            onClick={() => handleAddExerciseFromDayAction(d.id)}
+                            className="absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(2px) translate(-50%, -50%)', opacity: isActionOpen ? 1 : 0 }}
+                          >
+                            <Plus size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Eliminar día"
+                            title="Eliminar día"
+                            onClick={() => handleDeleteFromDayAction(d.id)}
+                            className="absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/40 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: isActionOpen ? 1 : 0 }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })}
+
+                {/* fade overlay removed while debugging persistent shading */}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openCreateDaySheet}
+                  disabled={!availableWeekdays.length}
+                  aria-label="Añadir día"
+                  className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112]"
+                  style={{ backgroundColor: '#0F1112' }}
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+      {!loadingRoutine && routine.length === 0 && (
+        <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
+          <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
+          <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
+          <button
+            type="button"
+            onClick={openCreateDaySheet}
+            disabled={!availableWeekdays.length}
+            className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Crear primer día
+          </button>
+        </div>
+      )}
 
       {isEditMode && (
         <div className="mx-4 mb-4 p-4 rounded-2xl bg-[#1B1D21] border border-amber-500/40">
           <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
             <Edit3 size={15} />
-            {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio a ${day.label}`}
+            {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
           </h3>
           <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
+            <input
+              type="hidden"
+              name="day_id"
+              value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')}
+            />
             <div>
               <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
               <input
@@ -753,77 +1470,183 @@ export default function RutinaTracker() {
               >
                 {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
               </button>
-              {editingEx && (
-                <button
-                  type="button"
-                  onClick={() => setEditingEx(null)}
-                  className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
-                >
-                  Cancelar
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}
+                className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
+              >
+                Cancelar
+              </button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="px-4 flex flex-col gap-3 mt-2">
-        {day.exercises.map((ex) => {
-          const isOpen = expanded === ex.id;
-          const todaySets = getTodaySets(ex.id);
-          const last = getLastSession(ex.id);
-          const draft = drafts[ex.id] || { weight: "", reps: "" };
-          const doneCount = todaySets.length;
-          const targetCount = ex.sets;
+      {showManageDay && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
+          <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-bold text-white">Gestionar día</h3>
+              <button
+                type="button"
+                onClick={() => setShowManageDay(false)}
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-neutral-800 p-2 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-          return (
-            <div
-              key={ex.id}
-              className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full"
-              style={{ borderLeftColor: plate.hex, borderLeftWidth: 3 }}
-            >
-              <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
-                <div
-                  className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => setExpanded(isOpen ? null : ex.id)}
-                >
-                  <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
-                  <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
-                    {ex.sets}×{ex.reps} · RIR {ex.rir} · descanso {ex.rest}
-                  </div>
-                  <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
-                    {last
-                      ? `Última vez (${displayDate(last.date)}): ${last.sets.map((s) => `${s.weight}kg×${s.reps}`).join(", ")}`
-                      : "Sin registros previos"}
-                  </div>
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día</span>
+                  <span className="text-xs font-semibold text-neutral-300">
+                    {routine.find((d) => d.id === manageSelectedDay)?.label || 'Día'}
+                  </span>
                 </div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título del día</label>
+                <input
+                  value={manageDayTitle}
+                  onChange={(ev) => setManageDayTitle(ev.target.value)}
+                  placeholder="Ej: Empuje A"
+                  className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                />
+              </div>
+            </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {isEditMode ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEditingEx(ex)}
-                        className="min-h-[44px] min-w-[44px] p-2 text-amber-400 bg-amber-500/10 rounded-lg"
-                      >
-                        <Edit3 size={15} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteExercise(ex.id)}
-                        className="min-h-[44px] min-w-[44px] p-2 text-red-400 bg-red-500/10 rounded-lg"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+              <div className="mt-4 space-y-2">
+                <button
+                  onClick={async () => {
+                    if (!manageSelectedDay) return;
+                    if (session && session.user) {
+                      try {
+                        await supabase.from('dias_usuario').upsert({ user_id: session.user.id, day_id: manageSelectedDay, title: manageDayTitle }, { onConflict: ['user_id','day_id'] });
+                      } catch (e) {
+                        console.warn('No se pudo guardar título de día', e);
+                        setErrorMsg('No se pudo guardar título en la nube.');
+                      }
+                    }
+                    setDayTitles(prev => ({ ...prev, [manageSelectedDay]: manageDayTitle }));
+                    setRoutine(prev => prev.map(d => d.id === manageSelectedDay ? { ...d, sub: manageDayTitle } : d));
+                    setShowManageDay(false);
+                    setOpenFromManage(false);
+                  }}
+                className="w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold uppercase text-black"
+              >
+                Guardar título
+              </button>
+
+              <div className="space-y-2">
+                <button
+                  onClick={async () => {
+                      if (!manageSelectedDay) return;
+                      await removeDay(manageSelectedDay);
+                      setShowManageDay(false);
+                      setOpenFromManage(false);
+                    }}
+                  className="w-full min-h-[44px] rounded-xl bg-red-700 px-3 py-2 text-xs font-bold text-white"
+                >
+                  Eliminar día
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateDaySheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreateDaySheet(false);
+          }}
+        >
+          <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-bold text-white">Crear día</h3>
+              <button
+                type="button"
+                onClick={() => setShowCreateDaySheet(false)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <X size={18} className="shrink-0 leading-none" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateDay} className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día de la semana</label>
+                <select
+                  name="new_day_id"
+                  value={createDayId}
+                  onChange={(e) => setCreateDayId(e.target.value)}
+                  className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                >
+                  {availableWeekdays.map((id) => (
+                    <option key={id} value={id}>{DAY_LABEL_MAP[id] || id}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título</label>
+                <input
+                  name="new_day_title"
+                  value={createDayTitle}
+                  onChange={(e) => setCreateDayTitle(e.target.value)}
+                  placeholder="Ej: Empuje A"
+                  className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowCreateDaySheet(false)} className="flex-1 min-h-[44px] rounded-xl bg-neutral-800 px-3 py-2 text-sm font-bold text-neutral-200">Cancelar</button>
+                <button type="submit" className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 flex flex-col gap-3 mt-2">
+        {day.exercises.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
+            <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
+          </div>
+        ) : (
+          <>
+            {day.exercises.map((ex) => {
+              const isOpen = expanded === ex.id;
+              const todaySets = getTodaySets(ex.id);
+              const last = getLastSession(ex.id);
+              const draft = drafts[ex.id] || { weight: "", reps: "" };
+              const doneCount = todaySets.length;
+              const targetCount = ex.sets;
+
+              return (
+                <div
+                  key={ex.id}
+                  className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full"
+                  style={{ borderLeftColor: plate.hex, borderLeftWidth: 3 }}
+                >
+                  <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => setExpanded(isOpen ? null : ex.id)}
+                    >
+                      <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
+                      <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
+                        {ex.sets}×{ex.reps} · <button type="button" onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="underline text-neutral-400">RIR</button> {ex.rir} · descanso {ex.rest}
+                      </div>
+                      <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
+                        {last
+                          ? `Última vez (${displayDate(last.date)}): ${last.sets.map((s) => `${s.weight}kg×${s.reps}`).join(", ")}`
+                          : "Sin registros previos"}
+                      </div>
                     </div>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => setShowHistoryModal(ex.id)}
-                        className="min-h-[44px] min-w-[44px] p-2 text-neutral-400 hover:text-white bg-[#26282D] rounded-lg"
-                        title="Ver Historial Completo"
-                      >
-                        <History size={16} />
-                      </button>
 
+                    <div className="flex items-center gap-2 shrink-0">
                       <span
                         className="text-[11px] font-bold rounded-full px-2 py-1 tabular-nums cursor-pointer min-h-[32px] flex items-center justify-center"
                         onClick={() => setExpanded(isOpen ? null : ex.id)}
@@ -834,98 +1657,184 @@ export default function RutinaTracker() {
                       >
                         {doneCount}/{targetCount}
                       </span>
+
+                      <button
+                        type="button"
+                        onMouseDown={(e) => startTimerButtonLongPress(e, ex)}
+                        onMouseUp={() => { endTimerButtonLongPress(); handleTimerButtonClick(ex); }}
+                        onMouseLeave={() => endTimerButtonLongPress()}
+                        onTouchStart={(e) => startTimerButtonLongPress(e, ex)}
+                        onTouchEnd={() => { endTimerButtonLongPress(); handleTimerButtonClick(ex); }}
+                        onContextMenu={(e) => { e.preventDefault(); timerSuppressClickRef.current = true; setTimerConfigTemp(loadRestConfig(ex.id, ex.name)); setTimerConfigOpen(ex.id); }}
+                        className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
+                        title="Temporizador descanso"
+                        aria-label={`Temporizador descanso para ${ex.name}`}
+                      >
+                        <Timer size={16} />
+                      </button>
+
+                      <div className="dropdown-root">
+                        <button
+                          type="button"
+                          ref={(node) => {
+                            if (node) exerciseMenuRefs.current[ex.id] = node;
+                            else delete exerciseMenuRefs.current[ex.id];
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExerciseMenuOpen((current) => current === ex.id ? null : ex.id);
+                          }}
+                          className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
+                          aria-label={`Más opciones para ${ex.name}`}
+                          title="Más opciones"
+                        >
+                          <MoreVertical size={18} />
+                        </button>
+                      </div>
+
+                      <div
+                        ref={exerciseMenuPanelRef}
+                        className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        style={{ width: exerciseMenuOpen === ex.id ? '34px' : '0px', opacity: exerciseMenuOpen === ex.id ? 1 : 0, zIndex: 10 }}
+                      >
+                        <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}>
+                          <button
+                            type="button"
+                            aria-label="Editar ejercicio"
+                            title="Editar ejercicio"
+                            onClick={() => {
+                              setEditingEx(ex);
+                              setOpenFromManage(false);
+                              setIsEditMode(true);
+                              setExerciseMenuOpen(null);
+                            }}
+                            className="absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Ver historial"
+                            title="Ver historial"
+                            onClick={() => {
+                              setShowHistoryModal(ex.id);
+                              setExerciseMenuOpen(null);
+                            }}
+                            className="absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(2px) translate(-50%, -50%)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
+                          >
+                            <History size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Eliminar ejercicio"
+                            title="Eliminar ejercicio"
+                            onClick={() => {
+                              handleDeleteExercise(ex.id);
+                              setExerciseMenuOpen(null);
+                            }}
+                            className="absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/40 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
                       <ChevronDown
                         size={18}
                         onClick={() => setExpanded(isOpen ? null : ex.id)}
                         className={`text-neutral-500 cursor-pointer transition-transform ${isOpen ? "rotate-180" : ""}`}
                       />
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {isOpen && !isEditMode && (
-                <div className="px-4 pb-4 border-t border-neutral-800 pt-3">
-                  {performanceAlert && expanded === ex.id && (
-                    <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
-                  )}
-                  {todaySets.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {todaySets.map((s, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
-                        >
-                          <Check size={12} style={{ color: plate.hex }} />
-                          serie {i + 1}: {s.weight}kg × {s.reps}
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => removeLastSet(ex.id)}
-                        className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
-                      >
-                        <Trash2 size={12} /> última
-                      </button>
                     </div>
-                  )}
-
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="flex-1 min-w-0 w-full sm:w-auto">
-                      <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={draft.weight}
-                        onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
-                        placeholder="0"
-                        className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 w-full sm:w-auto">
-                      <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={draft.reps}
-                        onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
-                        placeholder="0"
-                        className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
-                      />
-                    </div>
-                    <div className="w-full sm:w-[88px]">
-                      <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={draft.rir || ""}
-                        onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
-                        placeholder="RIR"
-                        className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
-                      />
-                    </div>
-                    <div className="w-full sm:w-[160px]">
-                      <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
-                      <input
-                        type="text"
-                        value={draft.notes || ""}
-                        onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
-                        placeholder="Nota rápida"
-                        className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
-                      />
-                    </div>
-                    <button
-                      onClick={() => addSet(ex.id)}
-                      className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
-                      style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
-                    >
-                      <Plus size={18} strokeWidth={3} />
-                    </button>
                   </div>
+
+                  {isOpen && !isEditMode && (
+                    <div className="px-4 pb-4 border-t border-neutral-800 pt-3">
+                      {performanceAlert && expanded === ex.id && (
+                        <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
+                      )}
+                      {todaySets.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {todaySets.map((s, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
+                            >
+                              <Check size={12} style={{ color: plate.hex }} />
+                              serie {i + 1}: {s.weight}kg × {s.reps}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => removeLastSet(ex.id)}
+                            className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
+                          >
+                            <Trash2 size={12} /> última
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="flex-1 min-w-0 w-full sm:w-auto">
+                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={draft.weight}
+                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
+                            placeholder="0"
+                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0 w-full sm:w-auto">
+                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            value={draft.reps}
+                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
+                            placeholder="0"
+                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                          />
+                        </div>
+                        <div className="w-full sm:w-[88px]">
+                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            value={draft.rir || ""}
+                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
+                            placeholder="RIR"
+                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
+                          />
+                        </div>
+                        <div className="w-full sm:w-[160px]">
+                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
+                          <input
+                            type="text"
+                            value={draft.notes || ""}
+                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
+                            placeholder="Nota rápida"
+                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
+                          />
+                        </div>
+                        <button
+                          onClick={() => addSet(ex.id)}
+                          className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
+                          style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
+                        >
+                          <Plus size={18} strokeWidth={3} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+
+          </>
+        )}
       </div>
 
       {showHistoryModal && (
@@ -939,8 +1848,10 @@ export default function RutinaTracker() {
                 <p className="text-xs text-neutral-500">Historial de entrenamientos pasados</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowHistoryModal(null)}
-                className="min-h-[44px] min-w-[44px] p-1.5 text-neutral-400 hover:text-white"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-neutral-800 p-2 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+                aria-label="Cerrar"
               >
                 <X size={18} />
               </button>
@@ -977,6 +1888,13 @@ export default function RutinaTracker() {
           </div>
         </div>
       )}
+
+      <InfoModal
+        term={info?.term}
+        title={info?.term === 'RIR' ? 'RIR (Reps In Reserve)' : info?.term}
+        text={info?.term === 'RIR' ? 'RIR (Reps In Reserve) indica cuántas repeticiones más podrías realizar al final de la serie. Ej: RIR 1 = podrías hacer 1 repetición más.' : ''}
+        onClose={() => setInfo(null)}
+      />
 
       {errorMsg && (
         <div className="mx-4 mt-4 text-xs bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-3 py-2">
@@ -1015,8 +1933,60 @@ export default function RutinaTracker() {
         )}
       </div>
     </div>
-      {showTimer && <RestTimer seconds={timerSeconds} onClose={() => setShowTimer(false)} />}
-      {showProfile && session?.user && <ProfileModal onClose={() => setShowProfile(false)} user={session.user} />}
+      {showTimer && (
+        <RestTimer
+          seconds={timerSeconds}
+          vibrate={timerOpts.vibrate}
+          sound={timerOpts.sound}
+          onClose={() => {
+            setShowTimer(false);
+            setActiveTimerExercise(null);
+          }}
+        />
+      )}
+      {timerConfigOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-white">Configuración temporizador</div>
+              <button type="button" onClick={() => setTimerConfigOpen(null)} className="min-h-[44px] min-w-[44px] rounded-full bg-neutral-800 p-2 text-neutral-300"><X size={18} /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Segundos</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <button onClick={() => setTimerConfigTemp((p) => ({ ...p, seconds: Math.max(0, (p.seconds || 0) - 15) }))} className="px-3 py-2 bg-neutral-800 rounded">-15s</button>
+                  <input type="number" value={timerConfigTemp.seconds || 0} onChange={(e) => setTimerConfigTemp((p) => ({ ...p, seconds: Number(e.target.value) }))} className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+                  <button onClick={() => setTimerConfigTemp((p) => ({ ...p, seconds: (p.seconds || 0) + 15 }))} className="px-3 py-2 bg-neutral-800 rounded">+15s</button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={!!timerConfigTemp.vibrate} onChange={(e) => setTimerConfigTemp((p) => ({ ...p, vibrate: e.target.checked }))} /> Vibrar al finalizar</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={!!timerConfigTemp.sound} onChange={(e) => setTimerConfigTemp((p) => ({ ...p, sound: e.target.checked }))} /> Sonido al finalizar</label>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    saveRestConfig(timerConfigOpen, timerConfigTemp);
+                    setTimerConfigOpen(null);
+                  }}
+                  className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
+                >Guardar</button>
+                <button
+                  onClick={() => {
+                    saveRestConfig(timerConfigOpen, timerConfigTemp);
+                    const ex = routine.flatMap((d) => d.exercises).find((e) => e.id === timerConfigOpen);
+                    openTimerForExercise(timerConfigOpen, ex?.name || '');
+                    setTimerConfigOpen(null);
+                  }}
+                  className="flex-1 min-h-[44px] rounded-xl bg-green-600 px-3 py-2 text-sm font-bold text-white"
+                >Guardar y Iniciar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showProfile && session?.user && <ProfileModal onClose={() => setShowProfile(false)} user={session.user} onSaved={(n)=>setProfileName(n)} />}
       {showAnalytics && session?.user && <Analytics onClose={() => setShowAnalytics(false)} user={session.user} />}
     </>
   );

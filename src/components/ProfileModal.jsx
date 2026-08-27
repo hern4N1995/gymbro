@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import supabase from "../../supabaseClient";
+import InfoModal from "./InfoModal";
+import { PrimaryButton, SecondaryButton } from "./Button";
 
-export default function ProfileModal({ onClose, user }) {
+export default function ProfileModal({ onClose, user, onSaved }) {
+  const [name, setName] = useState('');
   const [weight, setWeight] = useState(75);
   const [height, setHeight] = useState(175);
   const [age, setAge] = useState(30);
@@ -12,6 +16,7 @@ export default function ProfileModal({ onClose, user }) {
       try {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         if (data) {
+          setName(data.name || '');
           setWeight(data.weight || 75);
           setHeight(data.height || 175);
           setAge(data.age || 30);
@@ -29,40 +34,128 @@ export default function ProfileModal({ onClose, user }) {
 
   const save = async () => {
     try {
-      await supabase.from('profiles').upsert({ id: user.id, weight, height, age, profile });
+      const payload = { id: user.id, weight, height, age, profile, name };
+      const { data, error } = await supabase.from('profiles').upsert(payload).select().single();
+      if (error) {
+        console.error('Error upserting profile', error);
+        alert('No se pudo guardar el perfil: ' + (error.message || error));
+        return;
+      }
+      onSaved && onSaved(name || data?.name || user.user_metadata?.full_name || user.email);
       onClose && onClose();
     } catch (e) {
       console.error('Failed saving profile', e);
     }
   };
 
+  const [showInfo, setShowInfo] = useState(null);
+
+  const [pwOpen, setPwOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const changePassword = async () => {
+    if (!newPassword) return alert('Ingresa la nueva contraseña');
+    if (newPassword !== confirmPassword) return alert('Las contraseñas no coinciden');
+    try {
+      const { error } = await supabase.auth.update({ password: newPassword });
+      if (error) throw error;
+      alert('Contraseña actualizada. Usa la nueva contraseña en tu próximo inicio de sesión.');
+      setNewPassword(''); setConfirmPassword(''); setPwOpen(false);
+    } catch (e) {
+      console.error('Error updating password', e);
+      alert('Error actualizando contraseña: ' + (e.message || e));
+    }
+  };
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1B1D21] border border-neutral-800 rounded-2xl w-full max-w-md p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold">Perfil</h3>
-          <button onClick={onClose}>Cerrar</button>
+    <div className="fixed inset-0 z-50 p-0 sm:p-4">
+      <div className="fixed inset-0 bg-black/60 sm:hidden" onClick={onClose} />
+      <div className="relative mx-auto bg-[#111214] border border-neutral-800 rounded-2xl w-full h-full sm:h-auto sm:max-w-md overflow-auto">
+        <div className="px-4 py-3.5 border-b border-neutral-800 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold text-sm text-neutral-100">Perfil</h3>
+            <p className="text-xs text-neutral-500">Controla tus datos y objetivos</p>
+          </div>
+          <button onClick={onClose} className="min-h-[36px] min-w-[36px] p-1.5 text-neutral-400 hover:text-white">
+            <X size={18} />
+          </button>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <input value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="p-2 bg-[#121315]" />
-          <input value={height} onChange={(e) => setHeight(Number(e.target.value))} className="p-2 bg-[#121315]" />
-          <input value={age} onChange={(e) => setAge(Number(e.target.value))} className="p-2 bg-[#121315]" />
-          <select value={profile} onChange={(e) => setProfile(e.target.value)} className="p-2 bg-[#121315]">
-            <option>Principiante</option>
-            <option>Volviendo tras un parate</option>
-            <option>Intermedio</option>
-            <option>Sobrepeso</option>
-          </select>
+
+        <div className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre</label>
+              <input placeholder="Ej. Juan Pérez" value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <div className="help-chip mt-1">El nombre que se mostrará en la app.</div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Peso (kg)</label>
+              <input placeholder="Ej. 75" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <div className="help-chip mt-1">Introduce tu peso en kilogramos (kg).</div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Altura (cm)</label>
+              <input placeholder="Ej. 175" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <div className="help-chip mt-1">Altura en centímetros (cm).</div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Edad</label>
+              <input placeholder="Ej. 30" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <div className="help-chip mt-1">Edad en años.</div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Tipo de usuario</label>
+              <select value={profile} onChange={(e) => setProfile(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm">
+                <option>Principiante</option>
+                <option>Volviendo tras un parate</option>
+                <option>Intermedio</option>
+                <option>Sobrepeso</option>
+              </select>
+              <div className="help-chip mt-1">Selecciona una categoría que describa tu nivel actual.</div>
+            </div>
+          </div>
         </div>
-        <div className="mt-3 text-sm">
-          <div><strong>BMR:</strong> {BMR} kcal/día</div>
-          <div><strong>Proteína objetivo:</strong> {protein} g/día</div>
+
+        <div className="mt-3 text-sm px-4">
+          <div>
+            <button onClick={() => setShowInfo('BMR')} className="font-semibold hover:underline">BMR:</button> {BMR} kcal/día
+          </div>
+          <div>
+            <button onClick={() => setShowInfo('Protein')} className="font-semibold hover:underline">Proteína objetivo:</button> {protein} g/día
+          </div>
         </div>
-        <div className="flex gap-2 mt-4">
-          <button onClick={save} className="bg-amber-500 px-3 py-2 rounded">Guardar</button>
-          <button onClick={onClose} className="bg-neutral-800 px-3 py-2 rounded">Cancelar</button>
-          <button onClick={async () => { try { await supabase.auth.signOut(); onClose && onClose(); } catch(e){ console.error(e); } }} className="bg-red-600 px-3 py-2 rounded text-white">Cerrar Sesión</button>
+
+          <div className="p-4">
+          <SecondaryButton onClick={() => setPwOpen(!pwOpen)} className="w-full text-left">Cambiar contraseña</SecondaryButton>
+          {pwOpen && (
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <input type="password" placeholder="Nueva contraseña" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-[#0F1112] border border-neutral-700" />
+              <input type="password" placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-[#0F1112] border border-neutral-700" />
+              <div className="flex gap-2">
+                <PrimaryButton onClick={changePassword} className="flex-1">Actualizar contraseña</PrimaryButton>
+                <SecondaryButton onClick={() => { setPwOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="flex-1">Cancelar</SecondaryButton>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2 mt-4">
+            <PrimaryButton onClick={save} className="flex-1">Guardar</PrimaryButton>
+            <SecondaryButton onClick={onClose} className="flex-1">Cancelar</SecondaryButton>
+            <button onClick={async () => { try { await supabase.auth.signOut(); onClose && onClose(); } catch(e){ console.error(e); } }} className="flex-1 bg-red-600 px-3 py-2 rounded-xl text-white">Cerrar Sesión</button>
+          </div>
         </div>
+
+        <InfoModal
+          term={showInfo}
+          title={showInfo === 'BMR' ? 'BMR (Tasa Metabólica Basal)' : showInfo === 'Protein' ? 'Proteína objetivo' : ''}
+          text={showInfo === 'BMR' ? 'Tu BMR es la energía que tu cuerpo necesita en reposo. Se usa para estimar tus calorías diarias.' : 'Cantidad aproximada de proteína (g) recomendada por día según tu peso.'}
+          onClose={() => setShowInfo(null)}
+        />
       </div>
     </div>
   );
