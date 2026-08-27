@@ -258,6 +258,10 @@ export default function RutinaTracker() {
       setShowHistoryModal(null);
       return true;
     }
+    if (expanded) {
+      setExpanded(null);
+      return true;
+    }
     if (dayActionMenu) {
       setDayActionMenu(null);
       return true;
@@ -276,14 +280,22 @@ export default function RutinaTracker() {
       return true;
     }
     return false;
-  }, [dayActionMenu, exerciseMenuOpen, menuOpen, showAnalytics, showCreateDaySheet, showHistoryModal, showManageDay, showProfile, showTimer, timerConfigOpen]);
+  }, [dayActionMenu, exerciseMenuOpen, menuOpen, showAnalytics, showCreateDaySheet, showHistoryModal, showManageDay, showProfile, showTimer, timerConfigOpen, expanded]);
+
+  const pushHistoryState = useCallback(() => {
+    try {
+      window.history.pushState(null, '', window.location.href);
+    } catch (e) {
+      console.warn('No se pudo mantener la historia del navegador', e);
+    }
+  }, []);
 
   useEffect(() => {
     const handleBackButton = (event) => {
       event.preventDefault();
       const handled = closeTopLevelOverlay();
       if (handled) {
-        window.history.pushState(null, '', window.location.href);
+        pushHistoryState();
         return;
       }
 
@@ -291,7 +303,7 @@ export default function RutinaTracker() {
         setBackExitNotice('Presioná atrás otra vez para salir');
         if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
         exitPromptTimerRef.current = setTimeout(() => setBackExitNotice(''), 1800);
-        window.history.pushState(null, '', window.location.href);
+        pushHistoryState();
         return;
       }
 
@@ -307,13 +319,13 @@ export default function RutinaTracker() {
       }
     };
 
-    window.history.pushState(null, '', window.location.href);
+    pushHistoryState();
     window.addEventListener('popstate', handleBackButton);
     return () => {
       window.removeEventListener('popstate', handleBackButton);
       if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
     };
-  }, [backExitNotice, closeTopLevelOverlay]);
+  }, [backExitNotice, closeTopLevelOverlay, pushHistoryState]);
 
   useEffect(() => {
     if (!exerciseMenuOpen) return;
@@ -667,6 +679,7 @@ export default function RutinaTracker() {
     clearLongPressTimer();
     longPressTimerRef.current = setTimeout(() => {
       suppressClickRef.current = true;
+      setSelectedDay(dayId);
       openDayActionMenu(dayId);
     }, 500);
   };
