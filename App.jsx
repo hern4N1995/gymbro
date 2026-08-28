@@ -157,6 +157,27 @@ export default function RutinaTracker() {
   const [errorMsg, setErrorMsg] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
   const [session, setSession] = useState(null);
+  const [sessionStatus, setSessionStatus] = useState('verifying'); // 'verifying' | 'none' | 'authenticated'
+  const tokenRefreshedResolversRef = React.useRef([]);
+  const reloadFromSupabaseRef = React.useRef(null);
+
+  const waitForTokenRefresh = (timeout = 2000) => {
+    return new Promise((resolve) => {
+      const resolved = { done: false };
+      const timer = setTimeout(() => {
+        if (resolved.done) return;
+        resolved.done = true;
+        resolve(false);
+      }, timeout);
+      const resolver = () => {
+        if (resolved.done) return;
+        resolved.done = true;
+        clearTimeout(timer);
+        resolve(true);
+      };
+      tokenRefreshedResolversRef.current.push(resolver);
+    });
+  };
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
   const [activeTimerExercise, setActiveTimerExercise] = useState(null);
@@ -432,18 +453,45 @@ export default function RutinaTracker() {
     let mounted = true;
     const init = async () => {
       try {
+        setSessionStatus('verifying');
         const { data } = await supabase.auth.getSession();
         if (!mounted) return;
-        setSession(data?.session ?? null);
+        const sess = data?.session ?? null;
+        setSession(sess);
+        setSessionStatus(sess && sess.user ? 'authenticated' : 'none');
       } catch (e) {
         console.error("Error getting session", e);
+        if (!mounted) return;
+        setSession(null);
+        setSessionStatus('none');
       }
     };
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, sess) => {
+      // Update session object
       setSession(sess);
+      // Map to explicit session status
+      if (event === 'TOKEN_REFRESHED') {
+        // notify waiters
+        try {
+          (tokenRefreshedResolversRef.current || []).forEach(r => r());
+        } catch {}
+        tokenRefreshedResolversRef.current = [];
+        // trigger a reload of remote data if we have a user
+        if (sess && sess.user && reloadFromSupabaseRef.current) {
+          try { reloadFromSupabaseRef.current(sess.user.id, false); } catch (e) { console.warn('reloadFromSupabase failed', e); }
+        }
+        // ensure status set to authenticated when token refreshed
+        setSessionStatus(sess && sess.user ? 'authenticated' : 'none');
+        return;
+      }
+
+      // For other events, update status according to presence of user
+      if (sess && sess.user) setSessionStatus('authenticated');
+      else setSessionStatus('none');
     });
+
     return () => {
       mounted = false;
       try {
@@ -551,7 +599,7 @@ export default function RutinaTracker() {
       }
     };
 
-    const loadFromSupabase = async (userId) => {
+    const loadFromSupabase = async (userId, tried = false) => {
       setLoadingRoutine(true);
       try {
         const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", userId);
@@ -583,14 +631,33 @@ export default function RutinaTracker() {
         }
       } catch (e) {
         console.error("Error cargando rutina desde Supabase", e);
-        setErrorMsg('Error cargando rutina: ' + (e.message || e));
-        loadFromLocal();
+        // If it's an auth error (401), wait for token refresh (or short timeout) and retry once
+        const status = e && (e.status || (e.response && e.response.status));
+        if ((status === 401 || String(status) === '401') && !tried) {
+          try {
+            const refreshed = await waitForTokenRefresh(2000);
+            // after waiting (either token refreshed or timeout) retry once
+            return loadFromSupabase(userId, true);
+          } catch (inner) {
+            console.warn('Retry after token refresh failed', inner);
+            setErrorMsg('Error cargando rutina: ' + (e.message || e));
+            loadFromLocal();
+          }
+        } else {
+          setErrorMsg('Error cargando rutina: ' + (e.message || e));
+          loadFromLocal();
+        }
       } finally {
         setLoadingRoutine(false);
       }
     };
 
-    if (session && session.user) {
+    // expose reload function for TOKEN_REFRESHED handler
+    reloadFromSupabaseRef.current = loadFromSupabase;
+
+    if (sessionStatus === 'verifying') {
+      // don't decide yet
+    } else if (sessionStatus === 'authenticated' && session && session.user) {
       loadFromSupabase(session.user.id);
     } else {
       loadFromLocal();
@@ -698,6 +765,8 @@ export default function RutinaTracker() {
 
   const longPressTimerRef = React.useRef(null);
   const suppressClickRef = React.useRef(false);
+  const pillPointerStartRef = React.useRef(null);
+  const pillDragDetectedRef = React.useRef(false);
 
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current) {
@@ -718,6 +787,7 @@ export default function RutinaTracker() {
     clearLongPressTimer();
     longPressTimerRef.current = setTimeout(() => {
       suppressClickRef.current = true;
+      console.log('[long-press] dayId=', dayId);
       setSelectedDay(dayId);
       openDayActionMenu(dayId);
     }, 500);
@@ -725,6 +795,40 @@ export default function RutinaTracker() {
 
   const endLongPress = () => {
     clearLongPressTimer();
+  };
+
+  const handlePillPointerDown = (event, dayId) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
+    pillPointerStartRef.current = { x: event.clientX, y: event.clientY };
+    pillDragDetectedRef.current = false;
+    try { event.target?.setPointerCapture?.(event.pointerId); } catch (e) {}
+    startLongPress(event, dayId);
+  };
+
+  const handlePillPointerMove = (event) => {
+    if (!pillPointerStartRef.current || !event) return;
+    const dx = Math.abs(event.clientX - pillPointerStartRef.current.x || 0);
+    const dy = Math.abs(event.clientY - pillPointerStartRef.current.y || 0);
+    if (dx > 10 || dy > 10) {
+      pillDragDetectedRef.current = true;
+      endLongPress();
+    }
+  };
+
+  const handlePillPointerUp = (event) => {
+    try { event.target?.releasePointerCapture?.(event.pointerId); } catch (e) {}
+    const wasDragged = pillDragDetectedRef.current;
+    pillDragDetectedRef.current = false;
+    pillPointerStartRef.current = null;
+    endLongPress();
+  };
+
+  const handlePillPointerCancel = (event) => {
+    try { event.target?.releasePointerCapture?.(event.pointerId); } catch (e) {}
+    pillDragDetectedRef.current = false;
+    pillPointerStartRef.current = null;
+    endLongPress();
   };
 
   useEffect(() => {
@@ -755,6 +859,7 @@ export default function RutinaTracker() {
   }, []);
 
   const handlePillClick = (dayId) => {
+    console.log('[pill-click] dayId=', dayId, 'suppress=', suppressClickRef.current);
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
@@ -764,34 +869,9 @@ export default function RutinaTracker() {
     setEditingEx(null);
   };
 
-  const handlePillMouseDown = (event, dayId) => {
-    if (event.button !== 0 && event.button !== undefined) return;
-    event.preventDefault();
-    event.stopPropagation();
-    startLongPress(event, dayId);
-  };
 
-  const handlePillTouchStart = (event, dayId) => {
-    if (event.touches && event.touches.length > 1) {
-      endLongPress();
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    startLongPress(event, dayId);
-  };
-
-  const handlePillTouchMove = () => {
-    endLongPress();
-  };
-
-  const handlePillMouseUp = () => {
-    endLongPress();
-  };
-
-  const handlePillMouseLeave = () => {
-    endLongPress();
-  };
+  // Pointer event handlers replace mouse/touch handlers to avoid duplicate/synthesized events.
+  // See handlePillPointerDown/Move/Up/Cancel above.
 
   const handlePillContextMenu = (event, dayId) => {
     event.preventDefault();
@@ -1536,12 +1616,10 @@ export default function RutinaTracker() {
                         type="button"
                         data-pill-day-id={d.id}
                         onClick={() => handlePillClick(d.id)}
-                        onMouseDown={(event) => handlePillMouseDown(event, d.id)}
-                        onMouseUp={handlePillMouseUp}
-                        onMouseLeave={handlePillMouseLeave}
-                        onTouchStart={(event) => handlePillTouchStart(event, d.id)}
-                        onTouchEnd={handlePillMouseUp}
-                        onTouchMove={handlePillTouchMove}
+                        onPointerDown={(event) => handlePillPointerDown(event, d.id)}
+                        onPointerUp={handlePillPointerUp}
+                        onPointerMove={handlePillPointerMove}
+                        onPointerCancel={handlePillPointerCancel}
                         onContextMenu={(event) => handlePillContextMenu(event, d.id)}
                         className="relative z-0 shrink-0 min-h-[44px] min-w-[44px] flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-2 border transition-colors"
                         style={{
