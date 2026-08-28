@@ -310,11 +310,17 @@ export default function RutinaTracker() {
   const pushHistoryState = useCallback(() => {
     try {
       window.history.pushState(null, '', window.location.href);
+      console.log('[pushHistoryState] success');
     } catch (e) {
-      console.warn('No se pudo mantener la historia del navegador', e);
+      console.error('[pushHistoryState] failed', e);
     }
   }, []);
+  // Keep a ref to the current backExitNotice so the popstate listener
+  // doesn't need backExitNotice in its dependency array (avoids re-registering).
+  const backExitNoticeRef = React.useRef(backExitNotice);
+  useEffect(() => { backExitNoticeRef.current = backExitNotice; }, [backExitNotice]);
 
+  // Register popstate listener once (or when closeTopLevelOverlay/pushHistoryState change).
   useEffect(() => {
     const handleBackButton = (event) => {
       event.preventDefault();
@@ -324,14 +330,9 @@ export default function RutinaTracker() {
         return;
       }
 
-      if (!backExitNotice) {
+      if (!backExitNoticeRef.current) {
         setBackExitNotice('Presioná atrás otra vez para salir');
         setBackExitNoticeVisible(true);
-        if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
-        exitPromptTimerRef.current = setTimeout(() => {
-          setBackExitNoticeVisible(false);
-          setTimeout(() => setBackExitNotice(''), 350);
-        }, 2000);
         pushHistoryState();
         return;
       }
@@ -356,7 +357,22 @@ export default function RutinaTracker() {
       window.removeEventListener('popstate', handleBackButton);
       if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
     };
-  }, [backExitNotice, closeTopLevelOverlay, pushHistoryState]);
+  }, [closeTopLevelOverlay, pushHistoryState]);
+
+  // Manage auto-close timeout for the back-exit toast separately so changes
+  // to `backExitNotice` don't cause the popstate listener to be re-registered
+  // and accidentally clear the timeout.
+  useEffect(() => {
+    if (!backExitNotice) return;
+    if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
+    exitPromptTimerRef.current = setTimeout(() => {
+      setBackExitNoticeVisible(false);
+      setTimeout(() => setBackExitNotice(''), 350);
+    }, 2000);
+    return () => {
+      if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
+    };
+  }, [backExitNotice]);
 
   const dismissBackExitNotice = useCallback((immediate = false) => {
     if (exitPromptTimerRef.current) clearTimeout(exitPromptTimerRef.current);
