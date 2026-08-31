@@ -2381,11 +2381,6 @@ export default function RutinaTracker() {
           overscrollBehavior: 'contain',
         }}
       >
-        {reorderMode && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200">
-            Mantén presionado para mover un ejercicio
-          </div>
-        )}
         {day.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
