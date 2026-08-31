@@ -1566,6 +1566,7 @@ export default function RutinaTracker() {
 
   const reorderLongPressTimerRef = React.useRef(null);
   const reorderPointerRef = React.useRef({ x: 0, y: 0 });
+  const reorderHoldStartRef = React.useRef({ x: 0, y: 0 });
 
   const startExerciseReorderLongPress = (event, ex) => {
     if (event && event.button !== undefined && event.button !== 0) return;
@@ -1574,12 +1575,15 @@ export default function RutinaTracker() {
     if (event && event.preventDefault) event.preventDefault();
     if (event && event.stopPropagation) event.stopPropagation();
 
+    const point = event?.touches?.[0] || event;
+    reorderHoldStartRef.current = { x: point?.clientX || 0, y: point?.clientY || 0 };
+
     if (reorderLongPressTimerRef.current) clearTimeout(reorderLongPressTimerRef.current);
     reorderLongPressTimerRef.current = setTimeout(() => {
       setDraggedExerciseId(ex.id);
       setDropTargetId(ex.id);
       setReorderDragOffset({ x: 0, y: 0 });
-      reorderPointerRef.current = { x: event?.clientX || 0, y: event?.clientY || 0 };
+      reorderPointerRef.current = { x: point?.clientX || 0, y: point?.clientY || 0 };
       reorderActivePointerIdRef.current = event?.pointerId ?? event?.touches?.[0]?.identifier ?? null;
       setReorderMode(true);
 
@@ -1600,6 +1604,18 @@ export default function RutinaTracker() {
     if (reorderLongPressTimerRef.current) {
       clearTimeout(reorderLongPressTimerRef.current);
       reorderLongPressTimerRef.current = null;
+    }
+    reorderHoldStartRef.current = { x: 0, y: 0 };
+  };
+
+  const maybeCancelReorderLongPressOnMove = (event) => {
+    if (!reorderLongPressTimerRef.current) return;
+    const point = event?.touches?.[0] || event;
+    if (!point) return;
+    const dx = Math.abs((point.clientX || 0) - (reorderHoldStartRef.current?.x || 0));
+    const dy = Math.abs((point.clientY || 0) - (reorderHoldStartRef.current?.y || 0));
+    if (dx > 10 || dy > 10) {
+      cancelExerciseReorderLongPress();
     }
   };
 
@@ -2464,6 +2480,7 @@ export default function RutinaTracker() {
                     if (event.target.closest('button')) return;
                     startExerciseReorderLongPress(event, ex);
                   }}
+                  onMouseMove={maybeCancelReorderLongPressOnMove}
                   onMouseUp={cancelExerciseReorderLongPress}
                   onMouseLeave={cancelExerciseReorderLongPress}
                   onTouchStart={(event) => {
@@ -2471,6 +2488,7 @@ export default function RutinaTracker() {
                     startExerciseReorderLongPress(event, ex);
                   }}
                   onTouchMove={(event) => {
+                    maybeCancelReorderLongPressOnMove(event);
                     if (reorderMode) {
                       event.preventDefault();
                       handleReorderPointerMove(event);
