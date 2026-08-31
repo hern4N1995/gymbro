@@ -308,7 +308,9 @@ export default function RutinaTracker() {
   const [reorderMode, setReorderMode] = useState(false);
   const [draggedExerciseId, setDraggedExerciseId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
+  const [reorderDragOffset, setReorderDragOffset] = useState({ x: 0, y: 0 });
   const reorderGestureRef = React.useRef({ pointerId: null, sourceId: null });
+  const reorderScrollListRef = React.useRef(null);
   const [backExitNotice, setBackExitNotice] = useState('');
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -1562,17 +1564,23 @@ export default function RutinaTracker() {
   }, [routine]);
 
   const reorderLongPressTimerRef = React.useRef(null);
+  const reorderPointerRef = React.useRef({ x: 0, y: 0 });
 
   const startExerciseReorderLongPress = (event, ex) => {
     if (event && event.button !== undefined && event.button !== 0) return;
     if (event && event.target && event.target.closest('button')) return;
 
+    if (event && event.preventDefault) event.preventDefault();
+    if (event && event.stopPropagation) event.stopPropagation();
+
     if (reorderLongPressTimerRef.current) clearTimeout(reorderLongPressTimerRef.current);
     reorderLongPressTimerRef.current = setTimeout(() => {
       setDraggedExerciseId(ex.id);
       setDropTargetId(ex.id);
+      setReorderDragOffset({ x: 0, y: 0 });
+      reorderPointerRef.current = { x: event?.clientX || 0, y: event?.clientY || 0 };
       setReorderMode(true);
-    }, 450);
+    }, 420);
   };
 
   const cancelExerciseReorderLongPress = () => {
@@ -1584,16 +1592,44 @@ export default function RutinaTracker() {
 
   const endExerciseReorder = () => {
     reorderGestureRef.current = { pointerId: null, sourceId: null };
+    reorderPointerRef.current = { x: 0, y: 0 };
     setDraggedExerciseId(null);
     setDropTargetId(null);
+    setReorderDragOffset({ x: 0, y: 0 });
     setReorderMode(false);
   };
 
   const handleReorderPointerMove = (event) => {
     if (!reorderMode || !draggedExerciseId) return;
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
 
     const point = event?.touches?.[0] || event;
     if (!point) return;
+
+    const prevPoint = reorderPointerRef.current || { x: point.clientX, y: point.clientY };
+    const deltaY = point.clientY - prevPoint.y;
+    reorderPointerRef.current = { x: point.clientX, y: point.clientY };
+
+    if (Math.abs(deltaY) > 0) {
+      setReorderDragOffset((current) => {
+        const nextY = Math.max(-18, Math.min(18, current.y + deltaY * 0.18));
+        return { x: 0, y: nextY };
+      });
+    }
+
+    const listContainer = reorderScrollListRef.current;
+    if (listContainer) {
+      const rect = listContainer.getBoundingClientRect();
+      const edgeZone = 120;
+
+      if (point.clientY < rect.top + edgeZone) {
+        const distance = rect.top + edgeZone - point.clientY;
+        listContainer.scrollTop = Math.max(0, listContainer.scrollTop - (10 + distance * 0.25));
+      } else if (point.clientY > rect.bottom - edgeZone) {
+        const distance = point.clientY - (rect.bottom - edgeZone);
+        listContainer.scrollTop = Math.min(listContainer.scrollHeight - listContainer.clientHeight, listContainer.scrollTop + (10 + distance * 0.25));
+      }
+    }
 
     const targetNode = document.elementFromPoint(point.clientX, point.clientY);
     const cardNode = targetNode && targetNode.closest('[data-exercise-card]');
@@ -2337,7 +2373,14 @@ export default function RutinaTracker() {
         </div>
       )}
 
-      <div className="px-4 flex flex-col gap-3 mt-2">
+      <div
+        ref={reorderScrollListRef}
+        className="px-4 flex flex-col gap-3 mt-2"
+        style={{
+          touchAction: reorderMode ? 'none' : 'pan-y',
+          overscrollBehavior: 'contain',
+        }}
+      >
         {reorderMode && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200">
             Mantén presionado para mover un ejercicio
@@ -2365,6 +2408,11 @@ export default function RutinaTracker() {
                   data-exercise-card
                   data-exercise-id={ex.id}
                   onPointerMove={handleReorderPointerMove}
+                  onPointerEnter={() => {
+                    if (reorderMode && draggedExerciseId && draggedExerciseId !== ex.id) {
+                      setDropTargetId(ex.id);
+                    }
+                  }}
                   onPointerUp={() => {
                     if (!reorderMode || !draggedExerciseId || !dropTargetId) return;
                     if (dropTargetId !== draggedExerciseId) {
@@ -2391,6 +2439,12 @@ export default function RutinaTracker() {
                     if (event.target.closest('button')) return;
                     startExerciseReorderLongPress(event, ex);
                   }}
+                  onTouchMove={(event) => {
+                    if (reorderMode) {
+                      event.preventDefault();
+                      handleReorderPointerMove(event);
+                    }
+                  }}
                   onTouchEnd={() => {
                     if (!reorderMode || !draggedExerciseId || !dropTargetId) return;
                     if (dropTargetId !== draggedExerciseId) {
@@ -2398,6 +2452,8 @@ export default function RutinaTracker() {
                     }
                     endExerciseReorder();
                   }}
+                  onTouchCancel={endExerciseReorder}
+                  onPointerCancel={endExerciseReorder}
                   onClick={(event) => {
                     const clickedActionButton = event.target.closest('button');
                     if (clickedActionButton) return;
@@ -2418,12 +2474,15 @@ export default function RutinaTracker() {
                   style={{
                     borderLeftColor: plate.hex,
                     borderLeftWidth: 3,
-                    opacity: isDraggedCard ? 0.7 : 1,
+                    opacity: isDraggedCard ? 0.72 : 1,
                     borderColor: isDropTarget ? plate.hex : undefined,
                     backgroundColor: isDropTarget ? 'rgba(255,255,255,0.02)' : undefined,
-                    boxShadow: isDropTarget ? `0 0 0 2px ${plate.hex}33 inset, 0 10px 20px rgba(0,0,0,0.28)` : undefined,
-                    transform: isDraggedCard ? 'scale(0.99)' : isDropTarget ? 'translateY(-2px) scale(1.01)' : undefined,
-                    transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease',
+                    boxShadow: isDropTarget ? `0 0 0 2px ${plate.hex}33 inset, 0 12px 22px rgba(0,0,0,0.3)` : isDraggedCard ? '0 12px 22px rgba(0,0,0,0.24)' : undefined,
+                    transform: isDraggedCard ? `scale(1.02) translateY(${reorderDragOffset.y}px)` : isDropTarget ? 'translateY(-3px) scale(1.008)' : undefined,
+                    filter: isDraggedCard ? 'brightness(1.06)' : isDropTarget ? 'brightness(1.04)' : undefined,
+                    transition: 'transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
+                    touchAction: reorderMode ? 'none' : 'pan-y',
+                    zIndex: isDraggedCard ? 20 : isDropTarget ? 10 : undefined,
                   }}
                 >
                   <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
