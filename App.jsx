@@ -102,6 +102,58 @@ const displayDate = (iso) => {
   return `${d}/${m}/${y.slice(2)}`;
 };
 
+const normalizeRestValue = (value) => {
+  if (value == null || value === '') return '90s';
+  const raw = String(value).trim().toLowerCase();
+  if (!raw) return '90s';
+
+  const matchSingle = raw.match(/^(\d+(?:\.\d+)?)\s*(s|sec|secs|seg|segundos?)$/);
+  if (matchSingle) return `${Number(matchSingle[1])}s`;
+
+  const matchRangeSeconds = raw.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*(s|sec|secs|seg|segundos?)$/);
+  if (matchRangeSeconds) {
+    const a = Number(matchRangeSeconds[1]);
+    const b = Number(matchRangeSeconds[2]);
+    return `${Math.min(a, b)}-${Math.max(a, b)}s`;
+  }
+
+  const matchSingleMinutes = raw.match(/^(\d+(?:\.\d+)?)\s*(min|mins|minute|minutos?)$/);
+  if (matchSingleMinutes) return `${Number(matchSingleMinutes[1]) * 60}s`;
+
+  const matchRangeMinutes = raw.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*(min|mins|minute|minutos?)$/);
+  if (matchRangeMinutes) {
+    const a = Number(matchRangeMinutes[1]) * 60;
+    const b = Number(matchRangeMinutes[2]) * 60;
+    return `${Math.min(a, b)}-${Math.max(a, b)}s`;
+  }
+
+  const matchSingleMinutesWithSec = raw.match(/^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*(min|mins|minute|minutos?)\s*(?:\s*\(\s*?\d+\s*s\s*\)?)?$/);
+  if (matchSingleMinutesWithSec) {
+    const a = Number(matchSingleMinutesWithSec[1]) * 60;
+    const b = Number(matchSingleMinutesWithSec[2]) * 60;
+    return `${Math.min(a, b)}-${Math.max(a, b)}s`;
+  }
+
+  const matchNumberOnly = raw.match(/^(\d+(?:\.\d+)?)$/);
+  if (matchNumberOnly) return `${Number(matchNumberOnly[1])}s`;
+
+  return raw;
+};
+
+const formatRestLabel = (value) => {
+  const normalized = normalizeRestValue(value);
+  if (!normalized || normalized === 'undefined') return '90s';
+  if (normalized.includes('-')) {
+    const [a, b] = normalized.replace(/s/g, '').split('-').map((n) => Number(n));
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      return `${Math.round(a)}-${Math.round(b)}s`;
+    }
+  }
+  const num = Number(String(normalized).replace(/[^\d.]/g, ''));
+  if (Number.isFinite(num)) return `${Math.round(num)}s`;
+  return normalized;
+};
+
 const defaultDayId = () => {
   const map = { 0: "dom", 1: "lun", 2: "mar", 3: "mie", 4: "jue", 5: "vie", 6: "sab" };
   return map[new Date().getDay()] || "lun";
@@ -241,6 +293,22 @@ export default function RutinaTracker() {
   }, [errorMsg]);
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [showSaveTemplateSheet, setShowSaveTemplateSheet] = useState(false);
+  const [showLoadTemplateSheet, setShowLoadTemplateSheet] = useState(false);
+  const [selectedTemplateForLoad, setSelectedTemplateForLoad] = useState(null);
+  const [pendingTemplateToLoadAfterSave, setPendingTemplateToLoadAfterSave] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const MAX_TEMPLATE_SLOTS = 2;
+  const TEMPLATE_SLOT_OPTIONS = Array.from({ length: MAX_TEMPLATE_SLOTS }, (_, index) => index + 1);
+  const [saveTemplateSlot, setSaveTemplateSlot] = useState(1);
+  const [templateRenameValue, setTemplateRenameValue] = useState('');
+  const [renamingTemplateId, setRenamingTemplateId] = useState(null);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [draggedExerciseId, setDraggedExerciseId] = useState(null);
+  const [dropTargetId, setDropTargetId] = useState(null);
+  const reorderGestureRef = React.useRef({ pointerId: null, sourceId: null });
   const [backExitNotice, setBackExitNotice] = useState('');
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -310,7 +378,6 @@ export default function RutinaTracker() {
   const pushHistoryState = useCallback(() => {
     try {
       window.history.pushState(null, '', window.location.href);
-      console.log('[pushHistoryState] success');
     } catch (e) {
       console.error('[pushHistoryState] failed', e);
     }
@@ -643,7 +710,8 @@ export default function RutinaTracker() {
         } else {
           const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
           const grouped = dayIds.map(id => ({ id, label: labelMap[id] || id, exercises: uniqueById(normalized.filter(r => r.day_id === id)), sub: titleMap[id] || '' }));
-          setRoutine(sortRoutine(grouped));
+          const sortedRoutine = sortRoutine(grouped);
+          setRoutine(sortedRoutine);
         }
       } catch (e) {
         console.error("Error cargando rutina desde Supabase", e);
@@ -747,6 +815,188 @@ export default function RutinaTracker() {
   const sortRoutine = (arr) => {
     return [...arr].sort((a,b)=> WEEK_ORDER.indexOf(a.id) - WEEK_ORDER.indexOf(b.id));
   };
+
+  const serializeCurrentRoutineSnapshot = (currentRoutine = routine, currentDayTitles = dayTitles) => {
+    return (currentRoutine || []).map((day) => {
+      const dayId = day?.id ?? null;
+      const dayLabel = day?.label ?? '';
+      const daySub = day?.sub ?? currentDayTitles[dayId] ?? '';
+
+      return {
+        id: dayId,
+        label: dayLabel,
+        sub: daySub,
+        exercises: (day?.exercises || []).map((exercise) => {
+          const originalExerciseId = exercise?.exercise_id ?? exercise?.id ?? null;
+          return {
+            id: originalExerciseId,
+            exercise_id: originalExerciseId,
+            day_id: dayId,
+            name: exercise?.name ?? '',
+            sets: exercise?.sets ?? 0,
+            reps: exercise?.reps ?? '',
+            rir: exercise?.rir ?? '',
+            rest: exercise?.rest ?? '',
+            muscle_group: exercise?.muscle_group ?? '',
+          };
+        }),
+      };
+    });
+  };
+
+  const loadTemplates = useCallback(async () => {
+    if (!session || !session.user) {
+      setTemplates([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('routine_templates')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('slot_number', { ascending: true });
+
+    if (error) {
+      const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
+      if (missingTable) {
+        setTemplates([]);
+        return;
+      }
+      console.error('Error loading templates', error);
+      setTemplates([]);
+      return;
+    }
+
+    setTemplates(data || []);
+  }, [session]);
+
+  const saveTemplate = async (slotNumber = saveTemplateSlot, nameOverride = saveTemplateName) => {
+    if (!session || !session.user) return false;
+    const slot = Number(slotNumber);
+    if (!Number.isInteger(slot) || slot < 1 || slot > MAX_TEMPLATE_SLOTS) {
+      setErrorMsg(`Solo podés guardar ${MAX_TEMPLATE_SLOTS} rutinas.`);
+      return false;
+    }
+
+    const name = (nameOverride || '').trim() || 'Rutina';
+    const existingSlotNumbers = new Set((templates || []).map((template) => Number(template.slot_number)).filter(Number.isFinite));
+    if (existingSlotNumbers.size >= MAX_TEMPLATE_SLOTS && !existingSlotNumbers.has(slot)) {
+      setErrorMsg(`Solo podés guardar ${MAX_TEMPLATE_SLOTS} rutinas.`);
+      return false;
+    }
+
+    const { error } = await supabase
+      .from('routine_templates')
+      .upsert({
+        user_id: session.user.id,
+        slot_number: slot,
+        name,
+        days: serializeCurrentRoutineSnapshot(routine, dayTitles),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,slot_number' });
+
+    if (error) {
+      const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
+      if (missingTable) {
+        setErrorMsg('La tabla de plantillas no existe todavía. Ejecutá el SQL de creación antes de usar “Mis rutinas”.');
+      } else {
+        setErrorMsg('No se pudo guardar la plantilla.');
+      }
+      return false;
+    }
+
+    await loadTemplates();
+    return true;
+  };
+
+  const renameTemplate = async (templateId, nextName) => {
+    if (!session || !session.user) return false;
+
+    const name = (nextName || '').trim();
+    if (!name) return false;
+
+    const { error } = await supabase
+      .from('routine_templates')
+      .update({ name, updated_at: new Date().toISOString() })
+      .eq('id', templateId)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
+      if (missingTable) {
+        setErrorMsg('La tabla de plantillas no existe todavía. Ejecutá el SQL de creación antes de usar “Mis rutinas”.');
+      } else {
+        setErrorMsg('No se pudo renombrar la plantilla.');
+      }
+      return false;
+    }
+
+    await loadTemplates();
+    return true;
+  };
+
+  const deleteTemplate = async (templateId) => {
+    if (!session || !session.user) return false;
+
+    const { error } = await supabase
+      .from('routine_templates')
+      .delete()
+      .eq('id', templateId)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
+      if (missingTable) {
+        setErrorMsg('La tabla de plantillas no existe todavía. Ejecutá el SQL de creación antes de usar “Mis rutinas”.');
+      } else {
+        setErrorMsg('No se pudo borrar la plantilla.');
+      }
+      return false;
+    }
+
+    await loadTemplates();
+    return true;
+  };
+
+  const handleLoadTemplate = async (template) => {
+    if (!session || !session.user) return;
+
+    try {
+      const { error } = await supabase.rpc('replace_active_routine_from_template', {
+        p_user_id: session.user.id,
+        p_template_id: template.id,
+      });
+
+      if (error) {
+        const missingFn = typeof error?.message === 'string' && error.message.toLowerCase().includes('replace_active_routine_from_template');
+        if (missingFn) {
+          setErrorMsg('La función para cargar plantillas no existe todavía. Ejecutá el SQL del RPC de Supabase antes de usar “Mis rutinas”.');
+        } else {
+          setErrorMsg('La plantilla no se cargó. Tu rutina activa NO se modificó porque la operación falló y la transacción se revirtió.');
+        }
+        return;
+      }
+
+      if (reloadFromSupabaseRef.current) {
+        await reloadFromSupabaseRef.current(session.user.id);
+      }
+
+      setShowLoadTemplateSheet(false);
+      setSelectedTemplateForLoad(null);
+      setPendingTemplateToLoadAfterSave(null);
+      setErrorMsg('Plantilla cargada correctamente.');
+    } catch (e) {
+      setErrorMsg('La plantilla no se cargó. Tu rutina activa NO se modificó porque la operación falló y la transacción se revirtió.');
+    }
+  };
+
+  const hasActiveRoutineContent = (currentRoutine = routine) => {
+    return Array.isArray(currentRoutine) && currentRoutine.some((day) => Array.isArray(day?.exercises) && day.exercises.length > 0);
+  };
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   const addDay = (dayId, title = '') => {
     if (routine.find(d=>d.id===dayId)) return;
@@ -1126,24 +1376,56 @@ export default function RutinaTracker() {
     const sets = parseInt(formData.get("sets"), 10);
     const reps = formData.get("reps");
     const rir = formData.get("rir");
-    const rest = formData.get("rest");
+    const rest = normalizeRestValue(formData.get("rest"));
     const formMuscle = formData.get("muscle_group") || EXERCISE_MUSCLE_MAP[editingEx?.id] || 'Otros';
 
     if (!name) return;
 
     if (session && session.user) {
       try {
-        console.log('[handleSaveExercise] session?.access_token =', session?.access_token);
         if (editingEx && editingEx.id) {
-          // Actualizar ejercicio en Supabase
-          // editingEx.id may be either the DB `id` (uuid) or the custom `exercise_id` string.
-          // Use the appropriate filter to avoid Postgres UUID parse errors.
+          const exerciseKey = editingEx.exercise_id || editingEx.id;
           const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
           const isUuid = String(editingEx.id).match(uuidRegex);
-          let query = supabase.from("rutinas_usuario").update({ name, exercise_name: name, sets, reps, rir, rest, day_id: dayId, muscle_group: formMuscle }).select().single();
-          query = isUuid ? query.eq("id", editingEx.id) : query.eq("exercise_id", editingEx.id);
-          const { data: updated, error: updErr } = await query;
-          if (updErr) throw updErr;
+
+          let existingMatchQuery = supabase
+            .from("rutinas_usuario")
+            .select("id, exercise_id, day_id, user_id")
+            .eq("user_id", session.user.id);
+
+          if (isUuid) {
+            existingMatchQuery = existingMatchQuery.eq("id", editingEx.id);
+          } else {
+            existingMatchQuery = existingMatchQuery.eq("exercise_id", exerciseKey).eq("day_id", dayId);
+          }
+
+          const { data: existingMatches, error: existingErr } = await existingMatchQuery;
+          if (existingErr) throw existingErr;
+
+          if (existingMatches && existingMatches.length > 0) {
+            const targetRowId = existingMatches[0].id;
+            const { error: updErr } = await supabase
+              .from("rutinas_usuario")
+              .update({
+                name,
+                exercise_name: name,
+                sets,
+                reps,
+                rir,
+                rest,
+                day_id: dayId,
+                muscle_group: formMuscle,
+              })
+              .eq("id", targetRowId)
+              .eq("user_id", session.user.id);
+
+            if (updErr) throw updErr;
+          } else {
+            const newExerciseId = `${dayId}-${Date.now()}`;
+            const toInsert = { user_id: session.user.id, day_id: dayId, exercise_id: newExerciseId, name, exercise_name: name, sets, reps, rir, rest, muscle_group: formMuscle };
+            const { error: insErr } = await supabase.from("rutinas_usuario").insert(toInsert);
+            if (insErr) throw insErr;
+          }
         } else {
           // Insertar nuevo ejercicio en Supabase
           const newExerciseId = `${dayId}-${Date.now()}`;
@@ -1258,6 +1540,68 @@ export default function RutinaTracker() {
         return { ...d, exercises: d.exercises.filter((ex) => ex.id !== exId) };
       });
       saveRoutineStructure(newRoutine);
+    }
+  };
+
+  const reorderExercisesInDay = useCallback((dayId, sourceExerciseId, targetExerciseId) => {
+    if (!sourceExerciseId || !targetExerciseId || sourceExerciseId === targetExerciseId) return;
+
+    const nextRoutine = routine.map((day) => {
+      if (day.id !== dayId) return day;
+      const nextExercises = [...day.exercises];
+      const sourceIndex = nextExercises.findIndex((ex) => ex.id === sourceExerciseId);
+      const targetIndex = nextExercises.findIndex((ex) => ex.id === targetExerciseId);
+      if (sourceIndex < 0 || targetIndex < 0) return day;
+
+      const [moved] = nextExercises.splice(sourceIndex, 1);
+      nextExercises.splice(targetIndex, 0, moved);
+      return { ...day, exercises: nextExercises };
+    });
+
+    saveRoutineStructure(nextRoutine);
+  }, [routine]);
+
+  const reorderLongPressTimerRef = React.useRef(null);
+
+  const startExerciseReorderLongPress = (event, ex) => {
+    if (event && event.button !== undefined && event.button !== 0) return;
+    if (event && event.target && event.target.closest('button')) return;
+
+    if (reorderLongPressTimerRef.current) clearTimeout(reorderLongPressTimerRef.current);
+    reorderLongPressTimerRef.current = setTimeout(() => {
+      setDraggedExerciseId(ex.id);
+      setDropTargetId(ex.id);
+      setReorderMode(true);
+    }, 450);
+  };
+
+  const cancelExerciseReorderLongPress = () => {
+    if (reorderLongPressTimerRef.current) {
+      clearTimeout(reorderLongPressTimerRef.current);
+      reorderLongPressTimerRef.current = null;
+    }
+  };
+
+  const endExerciseReorder = () => {
+    reorderGestureRef.current = { pointerId: null, sourceId: null };
+    setDraggedExerciseId(null);
+    setDropTargetId(null);
+    setReorderMode(false);
+  };
+
+  const handleReorderPointerMove = (event) => {
+    if (!reorderMode || !draggedExerciseId) return;
+
+    const point = event?.touches?.[0] || event;
+    if (!point) return;
+
+    const targetNode = document.elementFromPoint(point.clientX, point.clientY);
+    const cardNode = targetNode && targetNode.closest('[data-exercise-card]');
+    if (!cardNode) return;
+
+    const targetId = cardNode.dataset.exerciseId;
+    if (targetId && targetId !== draggedExerciseId) {
+      setDropTargetId(targetId);
     }
   };
 
@@ -1558,21 +1902,30 @@ export default function RutinaTracker() {
           <div className="relative flex items-center justify-center">
             <div
               ref={radialMenuRef}
-              className="pointer-events-none absolute right-[42px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-hidden transition-[width,opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+              className="pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
               style={{
                 opacity: menuOpen ? 1 : 0,
-                width: menuOpen ? '42px' : '0px',
-                height: 100,
-                transform: `translate3d(${menuOpen ? '0px' : '12px'}, -50px, 0) scale(${menuOpen ? 1 : 0.8})`,
+                width: '120px',
+                height: '120px',
+                transform: `translate3d(${menuOpen ? '0px' : '12px'}, -60px, 0) scale(${menuOpen ? 1 : 0.35})`,
+                transformOrigin: 'center center',
+                pointerEvents: menuOpen ? 'auto' : 'none',
               }}
             >
-              <div className="relative h-[100px] w-[42px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: menuOpen ? 1 : 0 }}>
+              <div className="relative h-[120px] w-[120px] opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: menuOpen ? 1 : 0 }}>
                 <button
                   type="button"
                   aria-label="Perfil"
                   onClick={() => { setShowProfile(true); setMenuOpen(false); }}
-                  className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
-                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, transform: 'translateX(2px) translate(-50%, 0)', opacity: menuOpen ? 1 : 0 }}
+                  className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    minWidth: 32,
+                    minHeight: 32,
+                    transform: menuOpen ? 'translateX(2px) translate(-50%, 0) scale(1)' : 'translateX(-6px) translate(-50%, 12px) scale(0.45)',
+                    opacity: menuOpen ? 1 : 0,
+                  }}
                 >
                   <User size={16} />
                 </button>
@@ -1580,17 +1933,47 @@ export default function RutinaTracker() {
                   type="button"
                   aria-label="Analíticas"
                   onClick={() => { setShowAnalytics(true); setMenuOpen(false); }}
-                  className="pointer-events-auto absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
-                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, transform: 'translateX(-2px) translate(-50%, -50%)', opacity: menuOpen ? 1 : 0 }}
+                  className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    minWidth: 32,
+                    minHeight: 32,
+                    transform: menuOpen ? 'translateX(2px) scale(1)' : 'translateX(10px) translateY(10px) scale(0.45)',
+                    opacity: menuOpen ? 1 : 0,
+                  }}
                 >
                   <Calendar size={16} />
                 </button>
                 <button
                   type="button"
+                  aria-label="Mis rutinas"
+                  onClick={() => { setShowTemplateManager(true); setMenuOpen(false); }}
+                  className="pointer-events-auto absolute left-[18px] top-[62px] flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    minWidth: 32,
+                    minHeight: 32,
+                    transform: menuOpen ? 'translateX(2px) scale(1)' : 'translateX(10px) translateY(14px) scale(0.45)',
+                    opacity: menuOpen ? 1 : 0,
+                  }}
+                >
+                  <ListPlus size={16} />
+                </button>
+                <button
+                  type="button"
                   aria-label="Cerrar sesión"
                   onClick={() => { handleSignOut(); setMenuOpen(false); }}
-                  className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
-                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, transform: 'translateX(2px) translate(-50%, 0)', opacity: menuOpen ? 1 : 0 }}
+                  className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    minWidth: 32,
+                    minHeight: 32,
+                    transform: menuOpen ? 'translateX(2px) translate(-50%, 0) scale(1)' : 'translateX(-6px) translate(-50%, 18px) scale(0.45)',
+                    opacity: menuOpen ? 1 : 0,
+                  }}
                 >
                   <X size={16} />
                 </button>
@@ -1803,7 +2186,7 @@ export default function RutinaTracker() {
                 <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
                 <input
                   name="rest"
-                  defaultValue={editingEx?.rest || "90s"}
+                  defaultValue={formatRestLabel(editingEx?.rest) || "90s"}
                   className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
                 />
               </div>
@@ -1955,6 +2338,11 @@ export default function RutinaTracker() {
       )}
 
       <div className="px-4 flex flex-col gap-3 mt-2">
+        {reorderMode && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+            Mantén presionado para mover un ejercicio
+          </div>
+        )}
         {day.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
@@ -1968,25 +2356,75 @@ export default function RutinaTracker() {
               const draft = drafts[ex.id] || { weight: "", reps: "" };
               const doneCount = todaySets.length;
               const targetCount = ex.sets;
+              const isDraggedCard = reorderMode && draggedExerciseId === ex.id;
+              const isDropTarget = reorderMode && dropTargetId === ex.id && draggedExerciseId !== ex.id;
 
               return (
                 <div
                   key={ex.id}
+                  data-exercise-card
+                  data-exercise-id={ex.id}
+                  onPointerMove={handleReorderPointerMove}
+                  onPointerUp={() => {
+                    if (!reorderMode || !draggedExerciseId || !dropTargetId) return;
+                    if (dropTargetId !== draggedExerciseId) {
+                      reorderExercisesInDay(day.id, draggedExerciseId, dropTargetId);
+                    }
+                    endExerciseReorder();
+                  }}
+                  onPointerLeave={() => {
+                    if (reorderMode && draggedExerciseId && dropTargetId === ex.id) {
+                      setDropTargetId(null);
+                    }
+                  }}
                   ref={(node) => {
                     if (node) expandedRefs.current[ex.id] = node;
                     else delete expandedRefs.current[ex.id];
                   }}
+                  onMouseDown={(event) => {
+                    if (event.target.closest('button')) return;
+                    startExerciseReorderLongPress(event, ex);
+                  }}
+                  onMouseUp={cancelExerciseReorderLongPress}
+                  onMouseLeave={cancelExerciseReorderLongPress}
+                  onTouchStart={(event) => {
+                    if (event.target.closest('button')) return;
+                    startExerciseReorderLongPress(event, ex);
+                  }}
+                  onTouchEnd={() => {
+                    if (!reorderMode || !draggedExerciseId || !dropTargetId) return;
+                    if (dropTargetId !== draggedExerciseId) {
+                      reorderExercisesInDay(day.id, draggedExerciseId, dropTargetId);
+                    }
+                    endExerciseReorder();
+                  }}
                   onClick={(event) => {
                     const clickedActionButton = event.target.closest('button');
                     if (clickedActionButton) return;
+                    if (reorderMode) {
+                      if (draggedExerciseId && draggedExerciseId !== ex.id) {
+                        reorderExercisesInDay(day.id, draggedExerciseId, ex.id);
+                        endExerciseReorder();
+                      }
+                      return;
+                    }
                     if (exerciseMenuOpen === ex.id) {
                       setExerciseMenuOpen(null);
                       return;
                     }
                     setExpanded(isOpen ? null : ex.id);
                   }}
-                  className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer"
-                  style={{ borderLeftColor: plate.hex, borderLeftWidth: 3 }}
+                  className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer transition-all"
+                  style={{
+                    borderLeftColor: plate.hex,
+                    borderLeftWidth: 3,
+                    opacity: isDraggedCard ? 0.7 : 1,
+                    borderColor: isDropTarget ? plate.hex : undefined,
+                    backgroundColor: isDropTarget ? 'rgba(255,255,255,0.02)' : undefined,
+                    boxShadow: isDropTarget ? `0 0 0 2px ${plate.hex}33 inset, 0 10px 20px rgba(0,0,0,0.28)` : undefined,
+                    transform: isDraggedCard ? 'scale(0.99)' : isDropTarget ? 'translateY(-2px) scale(1.01)' : undefined,
+                    transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease',
+                  }}
                 >
                   <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
                     <div
@@ -2002,7 +2440,7 @@ export default function RutinaTracker() {
                     >
                       <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
                       <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
-                        {ex.sets}×{ex.reps} · <button type="button" onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="underline text-neutral-400">RIR</button> {ex.rir} · descanso {ex.rest}
+                        {ex.sets}×{ex.reps} · <button type="button" onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="underline text-neutral-400">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
                       </div>
                       <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
                         {last
@@ -2437,6 +2875,110 @@ export default function RutinaTracker() {
                   }}
                   className="flex-1 min-h-[44px] rounded-xl bg-green-600 px-3 py-2 text-sm font-bold text-white"
                 >Guardar y Iniciar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showTemplateManager && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) setShowTemplateManager(false); }}>
+          <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-bold text-white">Mis rutinas</h3>
+              <button
+                type="button"
+                onClick={() => setShowTemplateManager(false)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <X size={18} className="shrink-0 leading-none" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Guardar rutina actual</div>
+                <div className="flex gap-2">
+                  <input
+                    value={saveTemplateName}
+                    onChange={(e) => setSaveTemplateName(e.target.value)}
+                    placeholder="Nombre de la rutina"
+                    className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                  />
+                  <select
+                    value={saveTemplateSlot}
+                    onChange={(e) => setSaveTemplateSlot(Number(e.target.value))}
+                    className="min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-2 py-2 text-sm text-white"
+                  >
+                    {TEMPLATE_SLOT_OPTIONS.map((slot) => (
+                      <option key={slot} value={slot}>Slot {slot}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await saveTemplate();
+                    if (ok) setShowTemplateManager(false);
+                  }}
+                  className="mt-3 w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
+                >
+                  Guardar
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Plantillas guardadas</div>
+                {templates.length === 0 ? (
+                  <div className="text-sm text-neutral-400">Todavía no tenés plantillas guardadas.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {templates.map((template) => (
+                      <div key={template.id} className="rounded-lg border border-neutral-700 bg-[#1A1C1F] p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-semibold text-white">{template.name || 'Rutina'}</div>
+                            <div className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Slot {template.slot_number}</div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleLoadTemplate(template)}
+                              className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200"
+                            >
+                              Cargar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const nextName = window.prompt('Renombrar plantilla', template.name || 'Rutina');
+                                if (nextName === null) return;
+                                const ok = await renameTemplate(template.id, nextName);
+                                if (ok) setShowTemplateManager(false);
+                              }}
+                              className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200"
+                            >
+                              Ren.
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm('¿Borrar esta plantilla?')) {
+                                  const ok = await deleteTemplate(template.id);
+                                  if (ok) setShowTemplateManager(false);
+                                }
+                              }}
+                              className="min-h-[36px] rounded-lg bg-red-900/35 px-2 text-xs font-semibold text-red-200"
+                            >
+                              Borrar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ import supabase from "../../supabaseClient";
 import InfoModal from "./InfoModal";
 import { PrimaryButton, SecondaryButton } from "./Button";
 
-export default function ProfileModal({ onClose, user, onSaved }) {
+export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }) {
   const [name, setName] = useState('');
   const [weight, setWeight] = useState(75);
   const [height, setHeight] = useState(175);
@@ -131,6 +131,9 @@ export default function ProfileModal({ onClose, user, onSaved }) {
         </div>
 
           <div className="p-4">
+          {onOpenTemplates && (
+            <SecondaryButton onClick={onOpenTemplates} className="w-full text-left mb-3">Mis rutinas</SecondaryButton>
+          )}
           <SecondaryButton onClick={() => setPwOpen(!pwOpen)} className="w-full text-left">Cambiar contraseña</SecondaryButton>
           {pwOpen && (
             <div className="mt-3 grid grid-cols-1 gap-2">
