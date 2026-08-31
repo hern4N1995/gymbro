@@ -312,6 +312,7 @@ export default function RutinaTracker() {
   const reorderGestureRef = React.useRef({ pointerId: null, sourceId: null });
   const reorderScrollListRef = React.useRef(null);
   const reorderActivePointerIdRef = React.useRef(null);
+  const reorderHoldActivatedRef = React.useRef(false);
   const [backExitNotice, setBackExitNotice] = useState('');
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -1580,6 +1581,7 @@ export default function RutinaTracker() {
 
     if (reorderLongPressTimerRef.current) clearTimeout(reorderLongPressTimerRef.current);
     reorderLongPressTimerRef.current = setTimeout(() => {
+      reorderHoldActivatedRef.current = true;
       setDraggedExerciseId(ex.id);
       setDropTargetId(ex.id);
       setReorderDragOffset({ x: 0, y: 0 });
@@ -1606,6 +1608,7 @@ export default function RutinaTracker() {
       reorderLongPressTimerRef.current = null;
     }
     reorderHoldStartRef.current = { x: 0, y: 0 };
+    reorderHoldActivatedRef.current = false;
   };
 
   const maybeCancelReorderLongPressOnMove = (event) => {
@@ -1623,6 +1626,7 @@ export default function RutinaTracker() {
     reorderGestureRef.current = { pointerId: null, sourceId: null };
     reorderPointerRef.current = { x: 0, y: 0 };
     reorderActivePointerIdRef.current = null;
+    reorderHoldActivatedRef.current = false;
     setDraggedExerciseId(null);
     setDropTargetId(null);
     setReorderDragOffset({ x: 0, y: 0 });
@@ -2506,7 +2510,7 @@ export default function RutinaTracker() {
                   onClick={(event) => {
                     const clickedActionButton = event.target.closest('button');
                     if (clickedActionButton) return;
-                    if (reorderMode) {
+                    if (reorderHoldActivatedRef.current || reorderMode) {
                       if (draggedExerciseId && draggedExerciseId !== ex.id) {
                         reorderExercisesInDay(day.id, draggedExerciseId, ex.id);
                         endExerciseReorder();
@@ -2539,6 +2543,7 @@ export default function RutinaTracker() {
                       className="flex-1 min-w-0"
                       onClick={(event) => {
                         if (event.target.closest('button')) return;
+                        if (reorderHoldActivatedRef.current || reorderMode) return;
                         if (exerciseMenuOpen === ex.id) {
                           setExerciseMenuOpen(null);
                           return;
