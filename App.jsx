@@ -311,6 +311,7 @@ export default function RutinaTracker() {
   const [reorderDragOffset, setReorderDragOffset] = useState({ x: 0, y: 0 });
   const reorderGestureRef = React.useRef({ pointerId: null, sourceId: null });
   const reorderScrollListRef = React.useRef(null);
+  const reorderActivePointerIdRef = React.useRef(null);
   const [backExitNotice, setBackExitNotice] = useState('');
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -1579,7 +1580,19 @@ export default function RutinaTracker() {
       setDropTargetId(ex.id);
       setReorderDragOffset({ x: 0, y: 0 });
       reorderPointerRef.current = { x: event?.clientX || 0, y: event?.clientY || 0 };
+      reorderActivePointerIdRef.current = event?.pointerId ?? event?.touches?.[0]?.identifier ?? null;
       setReorderMode(true);
+
+      const root = document.body;
+      if (root) {
+        root.style.overflow = 'hidden';
+        root.style.touchAction = 'none';
+        root.style.overscrollBehavior = 'none';
+      }
+      const html = document.documentElement;
+      if (html) {
+        html.style.overscrollBehavior = 'none';
+      }
     }, 420);
   };
 
@@ -1593,10 +1606,22 @@ export default function RutinaTracker() {
   const endExerciseReorder = () => {
     reorderGestureRef.current = { pointerId: null, sourceId: null };
     reorderPointerRef.current = { x: 0, y: 0 };
+    reorderActivePointerIdRef.current = null;
     setDraggedExerciseId(null);
     setDropTargetId(null);
     setReorderDragOffset({ x: 0, y: 0 });
     setReorderMode(false);
+
+    const root = document.body;
+    if (root) {
+      root.style.overflow = '';
+      root.style.touchAction = '';
+      root.style.overscrollBehavior = '';
+    }
+    const html = document.documentElement;
+    if (html) {
+      html.style.overscrollBehavior = '';
+    }
   };
 
   const handleReorderPointerMove = (event) => {
@@ -2402,7 +2427,18 @@ export default function RutinaTracker() {
                   key={ex.id}
                   data-exercise-card
                   data-exercise-id={ex.id}
-                  onPointerMove={handleReorderPointerMove}
+                  onPointerMove={(event) => {
+                    if (reorderMode) {
+                      event.preventDefault();
+                    }
+                    handleReorderPointerMove(event);
+                  }}
+                  onPointerDown={(event) => {
+                    if (reorderMode && draggedExerciseId === ex.id) {
+                      event.preventDefault();
+                      event.currentTarget?.setPointerCapture?.(event.pointerId);
+                    }
+                  }}
                   onPointerEnter={() => {
                     if (reorderMode && draggedExerciseId && draggedExerciseId !== ex.id) {
                       setDropTargetId(ex.id);
