@@ -6,6 +6,7 @@ import supabase from "./supabaseClient";
 import RestTimer from "./src/components/RestTimer";
 import ProfileModal from "./src/components/ProfileModal";
 import Analytics from "./src/components/Analytics";
+import ExerciseList from "./src/components/ExerciseList";
 import { restDefaultByExercise, estimate1RM, volumeSeries } from "./src/utils/fitnessHelpers";
 import EXERCISE_MUSCLE_MAP from "./src/config/muscleMapping";
 
@@ -714,7 +715,18 @@ export default function RutinaTracker() {
         } else {
           const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
           const grouped = dayIds.map(id => ({ id, label: labelMap[id] || id, exercises: uniqueById(normalized.filter(r => r.day_id === id)), sub: titleMap[id] || '' }));
-          const sortedRoutine = sortRoutine(grouped);
+          // Ensure exercises in each day are ordered by sort_order (fallback to id)
+          const groupedWithOrder = grouped.map(g => ({
+            ...g,
+            exercises: (g.exercises || []).slice().sort((a, b) => {
+              const aKey = (typeof a.sort_order === 'number') ? a.sort_order : a.id;
+              const bKey = (typeof b.sort_order === 'number') ? b.sort_order : b.id;
+              if (aKey < bKey) return -1;
+              if (aKey > bKey) return 1;
+              return 0;
+            })
+          }));
+          const sortedRoutine = sortRoutine(groupedWithOrder);
           setRoutine(sortedRoutine);
         }
       } catch (e) {
