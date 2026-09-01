@@ -9,6 +9,18 @@ import Analytics from "./src/components/Analytics";
 import ExerciseList from "./src/components/ExerciseList";
 import { restDefaultByExercise, estimate1RM, volumeSeries } from "./src/utils/fitnessHelpers";
 import EXERCISE_MUSCLE_MAP from "./src/config/muscleMapping";
+import { DndContext, useSensor, useSensors, PointerSensor, KeyboardSensor } from '@dnd-kit/core';
+import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+// DragHandle removed: listeners/attributes applied to the card container instead
+
+// Small wrapper component that encapsulates the dnd-kit hook usage so
+// the parent component doesn't call hooks dynamically inside a loop.
+function SortableItem({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const transformStyle = { transform: CSS.Transform.toString(transform), transition };
+  return children({ attributes, listeners, setNodeRef, transformStyle, isDragging });
+}
 
 // Configuración visual por día
 const PLATE = {
@@ -306,14 +318,7 @@ export default function RutinaTracker() {
   const [saveTemplateSlot, setSaveTemplateSlot] = useState(1);
   const [templateRenameValue, setTemplateRenameValue] = useState('');
   const [renamingTemplateId, setRenamingTemplateId] = useState(null);
-  const [reorderMode, setReorderMode] = useState(false);
-  const [draggedExerciseId, setDraggedExerciseId] = useState(null);
-  const [dropTargetId, setDropTargetId] = useState(null);
-  const [reorderDragOffset, setReorderDragOffset] = useState({ x: 0, y: 0 });
-  const reorderGestureRef = React.useRef({ pointerId: null, sourceId: null });
-  const reorderScrollListRef = React.useRef(null);
-  const reorderActivePointerIdRef = React.useRef(null);
-  const reorderHoldActivatedRef = React.useRef(false);
+  
   const [backExitNotice, setBackExitNotice] = useState('');
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -556,35 +561,29 @@ export default function RutinaTracker() {
     };
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, sess) => {
-      // Update session object
-      setSession(sess);
-      // Map to explicit session status
-      if (event === 'TOKEN_REFRESHED') {
-        // notify waiters
-        try {
-          (tokenRefreshedResolversRef.current || []).forEach(r => r());
-        } catch {}
+    const listener = supabase.auth.onAuthStateChange((_event, sess) => {
+      // When tokens refresh or user signs in we may need to notify waiters
+      // and reload remote data. Handle those events specially.
+      if (_event === 'TOKEN_REFRESHED' || _event === 'SIGNED_IN') {
+        try { (tokenRefreshedResolversRef.current || []).forEach(r => r()); } catch {}
         tokenRefreshedResolversRef.current = [];
-        // trigger a reload of remote data if we have a user
         if (sess && sess.user && reloadFromSupabaseRef.current) {
           try { reloadFromSupabaseRef.current(sess.user.id, false); } catch (e) { console.warn('reloadFromSupabase failed', e); }
         }
-        // ensure status set to authenticated when token refreshed
+        setSession(sess);
         setSessionStatus(sess && sess.user ? 'authenticated' : 'none');
         return;
       }
 
       // For other events, update status according to presence of user
+      setSession(sess);
       if (sess && sess.user) setSessionStatus('authenticated');
       else setSessionStatus('none');
     });
 
     return () => {
       mounted = false;
-      try {
-        listener?.subscription?.unsubscribe?.();
-      } catch {}
+      try { listener?.subscription?.unsubscribe?.(); } catch {}
     };
   }, []);
 
@@ -783,6 +782,45 @@ export default function RutinaTracker() {
 
   const day = routine.find((d) => d.id === selectedDay) || routine[0] || null;
   const plate = PLATE[selectedDay] || PLATE["lun"];
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { delay: 400, tolerance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const [draggingId, setDraggingId] = useState(null);
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    // active.id and over.id are exercise ids within the current day
+    const dayIdx = routine.findIndex((d) => d.id === (day && day.id));
+    if (dayIdx < 0) return;
+    const items = routine[dayIdx].exercises.map((e) => e.id);
+    const oldIndex = items.indexOf(active.id);
+    const newIndex = items.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextExercises = arrayMove(routine[dayIdx].exercises, oldIndex, newIndex);
+    const nextRoutine = routine.map((d, i) => (i === dayIdx ? { ...d, exercises: nextExercises } : d));
+    saveRoutineStructure(nextRoutine);
+    // persistence to Supabase will be done in a later step
+    try { setDraggingId(null); } catch (e) {}
+  };
+
+  const handleDragStart = (event) => {
+    try {
+      const id = event?.active?.id;
+      const node = expandedRefs.current && expandedRefs.current[id];
+      console.log('[drag-debug] active.id:', id, 'node found:', !!node, 'node id real:', node?.dataset?.exerciseId);
+      setDraggingId(id || null);
+    } catch (e) {}
+  };
+
+  const handleDragCancel = (event) => {
+    try {
+      setDraggingId(null);
+    } catch (e) {}
+  };
 
   const WEEK_ORDER = ['lun','mar','mie','jue','vie','sab','dom'];
   const DAY_LABEL_MAP = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
@@ -1559,144 +1597,7 @@ export default function RutinaTracker() {
     }
   };
 
-  const reorderExercisesInDay = useCallback((dayId, sourceExerciseId, targetExerciseId) => {
-    if (!sourceExerciseId || !targetExerciseId || sourceExerciseId === targetExerciseId) return;
-
-    const nextRoutine = routine.map((day) => {
-      if (day.id !== dayId) return day;
-      const nextExercises = [...day.exercises];
-      const sourceIndex = nextExercises.findIndex((ex) => ex.id === sourceExerciseId);
-      const targetIndex = nextExercises.findIndex((ex) => ex.id === targetExerciseId);
-      if (sourceIndex < 0 || targetIndex < 0) return day;
-
-      const [moved] = nextExercises.splice(sourceIndex, 1);
-      nextExercises.splice(targetIndex, 0, moved);
-      return { ...day, exercises: nextExercises };
-    });
-
-    saveRoutineStructure(nextRoutine);
-  }, [routine]);
-
-  const reorderLongPressTimerRef = React.useRef(null);
-  const reorderPointerRef = React.useRef({ x: 0, y: 0 });
-  const reorderHoldStartRef = React.useRef({ x: 0, y: 0 });
-
-  const startExerciseReorderLongPress = (event, ex) => {
-    if (event && event.button !== undefined && event.button !== 0) return;
-    if (event && event.target && event.target.closest('button')) return;
-
-    if (event && event.preventDefault) event.preventDefault();
-    if (event && event.stopPropagation) event.stopPropagation();
-
-    const point = event?.touches?.[0] || event;
-    reorderHoldStartRef.current = { x: point?.clientX || 0, y: point?.clientY || 0 };
-
-    if (reorderLongPressTimerRef.current) clearTimeout(reorderLongPressTimerRef.current);
-    reorderLongPressTimerRef.current = setTimeout(() => {
-      reorderHoldActivatedRef.current = true;
-      setDraggedExerciseId(ex.id);
-      setDropTargetId(ex.id);
-      setReorderDragOffset({ x: 0, y: 0 });
-      reorderPointerRef.current = { x: point?.clientX || 0, y: point?.clientY || 0 };
-      reorderActivePointerIdRef.current = event?.pointerId ?? event?.touches?.[0]?.identifier ?? null;
-      setReorderMode(true);
-
-      const root = document.body;
-      if (root) {
-        root.style.overflow = 'hidden';
-        root.style.touchAction = 'none';
-        root.style.overscrollBehavior = 'none';
-      }
-      const html = document.documentElement;
-      if (html) {
-        html.style.overscrollBehavior = 'none';
-      }
-    }, 420);
-  };
-
-  const cancelExerciseReorderLongPress = () => {
-    if (reorderLongPressTimerRef.current) {
-      clearTimeout(reorderLongPressTimerRef.current);
-      reorderLongPressTimerRef.current = null;
-    }
-    reorderHoldStartRef.current = { x: 0, y: 0 };
-    reorderHoldActivatedRef.current = false;
-  };
-
-  const maybeCancelReorderLongPressOnMove = (event) => {
-    if (!reorderLongPressTimerRef.current) return;
-    const point = event?.touches?.[0] || event;
-    if (!point) return;
-    const dx = Math.abs((point.clientX || 0) - (reorderHoldStartRef.current?.x || 0));
-    const dy = Math.abs((point.clientY || 0) - (reorderHoldStartRef.current?.y || 0));
-    if (dx > 10 || dy > 10) {
-      cancelExerciseReorderLongPress();
-    }
-  };
-
-  const endExerciseReorder = () => {
-    reorderGestureRef.current = { pointerId: null, sourceId: null };
-    reorderPointerRef.current = { x: 0, y: 0 };
-    reorderActivePointerIdRef.current = null;
-    reorderHoldActivatedRef.current = false;
-    setDraggedExerciseId(null);
-    setDropTargetId(null);
-    setReorderDragOffset({ x: 0, y: 0 });
-    setReorderMode(false);
-
-    const root = document.body;
-    if (root) {
-      root.style.overflow = '';
-      root.style.touchAction = '';
-      root.style.overscrollBehavior = '';
-    }
-    const html = document.documentElement;
-    if (html) {
-      html.style.overscrollBehavior = '';
-    }
-  };
-
-  const handleReorderPointerMove = (event) => {
-    if (!reorderMode || !draggedExerciseId) return;
-    if (event && typeof event.preventDefault === 'function') event.preventDefault();
-
-    const point = event?.touches?.[0] || event;
-    if (!point) return;
-
-    const prevPoint = reorderPointerRef.current || { x: point.clientX, y: point.clientY };
-    const deltaY = point.clientY - prevPoint.y;
-    reorderPointerRef.current = { x: point.clientX, y: point.clientY };
-
-    if (Math.abs(deltaY) > 0) {
-      setReorderDragOffset((current) => {
-        const nextY = Math.max(-18, Math.min(18, current.y + deltaY * 0.18));
-        return { x: 0, y: nextY };
-      });
-    }
-
-    const listContainer = reorderScrollListRef.current;
-    if (listContainer) {
-      const rect = listContainer.getBoundingClientRect();
-      const edgeZone = 120;
-
-      if (point.clientY < rect.top + edgeZone) {
-        const distance = rect.top + edgeZone - point.clientY;
-        listContainer.scrollTop = Math.max(0, listContainer.scrollTop - (10 + distance * 0.25));
-      } else if (point.clientY > rect.bottom - edgeZone) {
-        const distance = point.clientY - (rect.bottom - edgeZone);
-        listContainer.scrollTop = Math.min(listContainer.scrollHeight - listContainer.clientHeight, listContainer.scrollTop + (10 + distance * 0.25));
-      }
-    }
-
-    const targetNode = document.elementFromPoint(point.clientX, point.clientY);
-    const cardNode = targetNode && targetNode.closest('[data-exercise-card]');
-    if (!cardNode) return;
-
-    const targetId = cardNode.dataset.exerciseId;
-    if (targetId && targetId !== draggedExerciseId) {
-      setDropTargetId(targetId);
-    }
-  };
+  
 
   const loadRestConfig = (exerciseId, exName) => {
     try {
@@ -2431,10 +2332,9 @@ export default function RutinaTracker() {
       )}
 
       <div
-        ref={reorderScrollListRef}
         className="px-4 flex flex-col gap-3 mt-2"
         style={{
-          touchAction: reorderMode ? 'none' : 'pan-y',
+          touchAction: 'pan-y',
           overscrollBehavior: 'contain',
         }}
       >
@@ -2443,7 +2343,8 @@ export default function RutinaTracker() {
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
         ) : (
-          <>
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+            <SortableContext items={day.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
             {day.exercises.map((ex) => {
               const isOpen = expanded === ex.id;
               const todaySets = getTodaySets(ex.id);
@@ -2451,121 +2352,39 @@ export default function RutinaTracker() {
               const draft = drafts[ex.id] || { weight: "", reps: "" };
               const doneCount = todaySets.length;
               const targetCount = ex.sets;
-              const isDraggedCard = reorderMode && draggedExerciseId === ex.id;
-              const isDropTarget = reorderMode && dropTargetId === ex.id && draggedExerciseId !== ex.id;
+              const isDraggedCard = false;
+              const isDropTarget = false;
 
+              
               return (
+                <SortableItem id={ex.id} key={ex.id}>
+                  {({ attributes, listeners, setNodeRef, transformStyle, isDragging }) => (
                 <div
-                  key={ex.id}
                   data-exercise-card
                   data-exercise-id={ex.id}
-                  onPointerMove={(event) => {
-                    if (reorderMode) {
-                      event.preventDefault();
-                    }
-                    handleReorderPointerMove(event);
-                  }}
-                  onPointerDown={(event) => {
-                    if (reorderMode && draggedExerciseId === ex.id) {
-                      event.preventDefault();
-                      event.currentTarget?.setPointerCapture?.(event.pointerId);
-                    }
-                  }}
-                  onPointerEnter={() => {
-                    if (reorderMode && draggedExerciseId && draggedExerciseId !== ex.id) {
-                      setDropTargetId(ex.id);
-                    }
-                  }}
-                  onPointerUp={() => {
-                    if (!reorderMode || !draggedExerciseId || !dropTargetId) return;
-                    if (dropTargetId !== draggedExerciseId) {
-                      reorderExercisesInDay(day.id, draggedExerciseId, dropTargetId);
-                    }
-                    endExerciseReorder();
-                  }}
-                  onPointerLeave={() => {
-                    if (reorderMode && draggedExerciseId && dropTargetId === ex.id) {
-                      setDropTargetId(null);
-                    }
-                  }}
-                  ref={(node) => {
-                    if (node) expandedRefs.current[ex.id] = node;
-                    else delete expandedRefs.current[ex.id];
-                  }}
-                  onMouseDown={(event) => {
-                    if (event.target.closest('button')) return;
-                    startExerciseReorderLongPress(event, ex);
-                  }}
-                  onMouseMove={maybeCancelReorderLongPressOnMove}
-                  onMouseUp={cancelExerciseReorderLongPress}
-                  onMouseLeave={cancelExerciseReorderLongPress}
-                  onTouchStart={(event) => {
-                    if (event.target.closest('button')) return;
-                    startExerciseReorderLongPress(event, ex);
-                  }}
-                  onTouchMove={(event) => {
-                    maybeCancelReorderLongPressOnMove(event);
-                    if (reorderMode) {
-                      event.preventDefault();
-                      handleReorderPointerMove(event);
-                    }
-                  }}
-                  onTouchEnd={() => {
-                    if (!reorderMode || !draggedExerciseId || !dropTargetId) return;
-                    if (dropTargetId !== draggedExerciseId) {
-                      reorderExercisesInDay(day.id, draggedExerciseId, dropTargetId);
-                    }
-                    endExerciseReorder();
-                  }}
-                  onTouchCancel={endExerciseReorder}
-                  onPointerCancel={endExerciseReorder}
+                  {...attributes}
+                  {...listeners}
+                  ref={(node) => { setNodeRef(node); if (node) expandedRefs.current[ex.id] = node; else delete expandedRefs.current[ex.id]; }}
                   onClick={(event) => {
-                    const clickedActionButton = event.target.closest('button');
-                    if (clickedActionButton) return;
-                    if (reorderHoldActivatedRef.current || reorderMode) {
-                      if (draggedExerciseId && draggedExerciseId !== ex.id) {
-                        reorderExercisesInDay(day.id, draggedExerciseId, ex.id);
-                        endExerciseReorder();
-                      }
-                      return;
-                    }
-                    if (exerciseMenuOpen === ex.id) {
-                      setExerciseMenuOpen(null);
-                      return;
-                    }
+                    event.stopPropagation();
+                    if (exerciseMenuOpen === ex.id) { setExerciseMenuOpen(null); return; }
                     setExpanded(isOpen ? null : ex.id);
                   }}
                   className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer transition-all"
                   style={{
                     borderLeftColor: plate.hex,
                     borderLeftWidth: 3,
-                    opacity: isDraggedCard ? 0.72 : 1,
-                    borderColor: isDropTarget ? plate.hex : undefined,
-                    backgroundColor: isDropTarget ? 'rgba(255,255,255,0.02)' : undefined,
-                    boxShadow: isDropTarget ? `0 0 0 2px ${plate.hex}33 inset, 0 12px 22px rgba(0,0,0,0.3)` : isDraggedCard ? '0 12px 22px rgba(0,0,0,0.24)' : undefined,
-                    transform: isDraggedCard ? `scale(1.02) translateY(${reorderDragOffset.y}px)` : isDropTarget ? 'translateY(-3px) scale(1.008)' : undefined,
-                    filter: isDraggedCard ? 'brightness(1.06)' : isDropTarget ? 'brightness(1.04)' : undefined,
+                    opacity: isDragging ? 0.72 : 1,
                     transition: 'transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
-                    touchAction: reorderMode ? 'none' : 'pan-y',
-                    zIndex: isDraggedCard ? 20 : isDropTarget ? 10 : undefined,
+                    touchAction: (draggingId === ex.id) ? 'none' : 'manipulation',
+                    ...transformStyle,
                   }}
                 >
                   <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
-                    <div
-                      className="flex-1 min-w-0"
-                      onClick={(event) => {
-                        if (event.target.closest('button')) return;
-                        if (reorderHoldActivatedRef.current || reorderMode) return;
-                        if (exerciseMenuOpen === ex.id) {
-                          setExerciseMenuOpen(null);
-                          return;
-                        }
-                        setExpanded(isOpen ? null : ex.id);
-                      }}
-                    >
+                    <div className="flex-1 min-w-0">
                       <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
                       <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
-                        {ex.sets}×{ex.reps} · <button type="button" onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="underline text-neutral-400">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
+                        {ex.sets}×{ex.reps} · <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="underline text-neutral-400">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
                       </div>
                       <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
                         {last
@@ -2574,7 +2393,7 @@ export default function RutinaTracker() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="exercise-controls flex items-center gap-2 shrink-0" style={{ pointerEvents: 'none' }}>
                       <span
                         className="text-[11px] font-bold rounded-full px-2 py-1 tabular-nums cursor-pointer min-h-[32px] flex items-center justify-center"
                         onClick={(event) => {
@@ -2585,16 +2404,16 @@ export default function RutinaTracker() {
                           }
                           setExpanded(isOpen ? null : ex.id);
                         }}
-                        style={{
-                          backgroundColor: doneCount >= targetCount ? "#2E9E5B33" : "#2a2c30",
-                          color: doneCount >= targetCount ? "#59D98A" : "#9a9ca1",
-                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        style={{ pointerEvents: 'auto', backgroundColor: doneCount >= targetCount ? "#2E9E5B33" : "#2a2c30", color: doneCount >= targetCount ? "#59D98A" : "#9a9ca1" }}
                       >
                         {doneCount}/{targetCount}
                       </span>
 
                       <button
                         type="button"
+                        style={{ pointerEvents: 'auto' }}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => startTimerButtonLongPress(e, ex)}
                         onMouseMove={handleTimerPointerMove}
                         onMouseUp={() => handleTimerPointerUp(ex)}
@@ -2621,6 +2440,7 @@ export default function RutinaTracker() {
                             if (node) exerciseMenuRefs.current[ex.id] = node;
                             else delete exerciseMenuRefs.current[ex.id];
                           }}
+                          onPointerDown={(e) => e.stopPropagation()}
                           onMouseDown={(event) => event.stopPropagation()}
                           onTouchStart={(event) => event.stopPropagation()}
                           onClick={(event) => {
@@ -2628,6 +2448,7 @@ export default function RutinaTracker() {
                             setExerciseMenuOpen((current) => current === ex.id ? null : ex.id);
                           }}
                           className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
+                          style={{ pointerEvents: 'auto' }}
                           aria-label={`Más opciones para ${ex.name}`}
                           title="Más opciones"
                         >
@@ -2637,16 +2458,18 @@ export default function RutinaTracker() {
 
                       <div
                         ref={exerciseMenuPanelRef}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(event) => event.stopPropagation()}
                         onTouchStart={(event) => event.stopPropagation()}
                         className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                        style={{ width: exerciseMenuOpen === ex.id ? '34px' : '0px', opacity: exerciseMenuOpen === ex.id ? 1 : 0, zIndex: 10 }}
+                        style={{ width: exerciseMenuOpen === ex.id ? '34px' : '0px', opacity: exerciseMenuOpen === ex.id ? 1 : 0, zIndex: 10, pointerEvents: exerciseMenuOpen === ex.id ? 'auto' : 'none' }}
                       >
                         <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}>
                           <button
                             type="button"
                             aria-label="Editar ejercicio"
                             title="Editar ejercicio"
+                            onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onTouchStart={(event) => event.stopPropagation()}
                             onClick={() => {
@@ -2664,6 +2487,7 @@ export default function RutinaTracker() {
                             type="button"
                             aria-label="Ver historial"
                             title="Ver historial"
+                            onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onTouchStart={(event) => event.stopPropagation()}
                             onClick={() => {
@@ -2679,6 +2503,7 @@ export default function RutinaTracker() {
                             type="button"
                             aria-label="Eliminar ejercicio"
                             title="Eliminar ejercicio"
+                            onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onTouchStart={(event) => event.stopPropagation()}
                             onClick={() => {
@@ -2697,6 +2522,8 @@ export default function RutinaTracker() {
                         type="button"
                         aria-label={isOpen ? "Contraer ejercicio" : "Expandir ejercicio"}
                         className="relative z-30 flex h-11 w-11 -ml-1 -mr-1 items-center justify-center rounded-full border border-transparent bg-transparent text-neutral-500 transition-colors hover:bg-[#2a2c30] hover:text-neutral-200"
+                        style={{ pointerEvents: 'auto' }}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(event) => event.stopPropagation()}
                         onTouchStart={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -2749,6 +2576,7 @@ export default function RutinaTracker() {
                             </div>
                           ))}
                           <button
+                            onPointerDown={(e) => e.stopPropagation()}
                             onClick={() => removeLastSet(ex.id)}
                             className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
                           >
@@ -2765,6 +2593,7 @@ export default function RutinaTracker() {
                             inputMode="decimal"
                             value={draft.weight}
                             onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
+                            onPointerDown={(e) => e.stopPropagation()}
                             placeholder="0"
                             className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
                           />
@@ -2776,6 +2605,7 @@ export default function RutinaTracker() {
                             inputMode="numeric"
                             value={draft.reps}
                             onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
+                            onPointerDown={(e) => e.stopPropagation()}
                             placeholder="0"
                             className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
                           />
@@ -2787,6 +2617,7 @@ export default function RutinaTracker() {
                             inputMode="numeric"
                             value={draft.rir || ""}
                             onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
+                            onPointerDown={(e) => e.stopPropagation()}
                             placeholder="RIR"
                             className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
                           />
@@ -2797,11 +2628,13 @@ export default function RutinaTracker() {
                             type="text"
                             value={draft.notes || ""}
                             onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
+                            onPointerDown={(e) => e.stopPropagation()}
                             placeholder="Nota rápida"
                             className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
                           />
                         </div>
                         <button
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => addSet(ex.id)}
                           className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
                           style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
@@ -2812,10 +2645,13 @@ export default function RutinaTracker() {
                     </div>
                   )}
                 </div>
+                  )}
+                </SortableItem>
               );
             })}
 
-          </>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
