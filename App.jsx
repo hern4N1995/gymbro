@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User } from "lucide-react";
+import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User, GripVertical } from "lucide-react";
 import InfoModal from "./src/components/InfoModal";
 import { PrimaryButton, SecondaryButton } from "./src/components/Button";
 import supabase from "./supabaseClient";
@@ -788,7 +788,6 @@ export default function RutinaTracker() {
     useSensor(KeyboardSensor)
   );
 
-  const [draggingId, setDraggingId] = useState(null);
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
@@ -804,21 +803,17 @@ export default function RutinaTracker() {
     const nextRoutine = routine.map((d, i) => (i === dayIdx ? { ...d, exercises: nextExercises } : d));
     saveRoutineStructure(nextRoutine);
     // persistence to Supabase will be done in a later step
-    try { setDraggingId(null); } catch (e) {}
   };
 
   const handleDragStart = (event) => {
     try {
-      const id = event?.active?.id;
-      const node = expandedRefs.current && expandedRefs.current[id];
-      console.log('[drag-debug] active.id:', id, 'node found:', !!node, 'node id real:', node?.dataset?.exerciseId);
-      setDraggingId(id || null);
+      console.log('[dnd-debug] onDragStart', event?.active?.id);
     } catch (e) {}
   };
 
   const handleDragCancel = (event) => {
     try {
-      setDraggingId(null);
+      console.log('[dnd-debug] onDragCancel', event);
     } catch (e) {}
   };
 
@@ -1107,7 +1102,6 @@ export default function RutinaTracker() {
     clearLongPressTimer();
     longPressTimerRef.current = setTimeout(() => {
       suppressClickRef.current = true;
-      console.log('[long-press] dayId=', dayId);
       setSelectedDay(dayId);
       openDayActionMenu(dayId);
     }, 500);
@@ -1179,7 +1173,7 @@ export default function RutinaTracker() {
   }, []);
 
   const handlePillClick = (dayId) => {
-    console.log('[pill-click] dayId=', dayId, 'suppress=', suppressClickRef.current);
+    // pill click; suppressClickRef handled above
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
@@ -2362,8 +2356,6 @@ export default function RutinaTracker() {
                 <div
                   data-exercise-card
                   data-exercise-id={ex.id}
-                  {...attributes}
-                  {...listeners}
                   ref={(node) => { setNodeRef(node); if (node) expandedRefs.current[ex.id] = node; else delete expandedRefs.current[ex.id]; }}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -2376,11 +2368,34 @@ export default function RutinaTracker() {
                     borderLeftWidth: 3,
                     opacity: isDragging ? 0.72 : 1,
                     transition: 'transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
-                    touchAction: (draggingId === ex.id) ? 'none' : 'manipulation',
+                    touchAction: 'manipulation',
                     ...transformStyle,
                   }}
                 >
                   <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
+                    <div
+                      className="mr-2 flex items-center shrink-0"
+                      role="button"
+                      tabIndex={0}
+                      style={{
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none',
+                        touchAction: 'none',
+                        pointerEvents: 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      {...attributes}
+                      {...listeners}
+                      onPointerDown={(e) => {
+                        console.log('[grip-debug] pointerdown', ex.id);
+                        if (listeners?.onPointerDown) listeners.onPointerDown(e);
+                      }}
+                    >
+                      <GripVertical size={18} />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
                       <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
