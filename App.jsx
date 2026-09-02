@@ -335,6 +335,7 @@ export default function RutinaTracker() {
   const radialMenuRef = React.useRef(null);
   const radialMenuTriggerRef = React.useRef(null);
   const expandedRefs = React.useRef({});
+  const suppressClickAfterModalCloseRef = React.useRef(false);
 
   const closeTopLevelOverlay = useCallback(() => {
     if (showCreateDaySheet) {
@@ -806,15 +807,11 @@ export default function RutinaTracker() {
   };
 
   const handleDragStart = (event) => {
-    try {
-      console.log('[dnd-debug] onDragStart', event?.active?.id);
-    } catch (e) {}
+    // diagnostic removed: do not log here in production
   };
 
   const handleDragCancel = (event) => {
-    try {
-      console.log('[dnd-debug] onDragCancel', event);
-    } catch (e) {}
+    // diagnostic removed: do not log here in production
   };
 
   const WEEK_ORDER = ['lun','mar','mie','jue','vie','sab','dom'];
@@ -2359,6 +2356,10 @@ export default function RutinaTracker() {
                   ref={(node) => { setNodeRef(node); if (node) expandedRefs.current[ex.id] = node; else delete expandedRefs.current[ex.id]; }}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (suppressClickAfterModalCloseRef.current) {
+                      suppressClickAfterModalCloseRef.current = false;
+                      return;
+                    }
                     if (exerciseMenuOpen === ex.id) { setExerciseMenuOpen(null); return; }
                     setExpanded(isOpen ? null : ex.id);
                   }}
@@ -2390,7 +2391,6 @@ export default function RutinaTracker() {
                       {...attributes}
                       {...listeners}
                       onPointerDown={(e) => {
-                        console.log('[grip-debug] pointerdown', ex.id);
                         if (listeners?.onPointerDown) listeners.onPointerDown(e);
                       }}
                     >
@@ -2533,28 +2533,7 @@ export default function RutinaTracker() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        aria-label={isOpen ? "Contraer ejercicio" : "Expandir ejercicio"}
-                        className="relative z-30 flex h-11 w-11 -ml-1 -mr-1 items-center justify-center rounded-full border border-transparent bg-transparent text-neutral-500 transition-colors hover:bg-[#2a2c30] hover:text-neutral-200"
-                        style={{ pointerEvents: 'auto' }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onTouchStart={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (exerciseMenuOpen === ex.id) {
-                            setExerciseMenuOpen(null);
-                            return;
-                          }
-                          setExpanded(isOpen ? null : ex.id);
-                        }}
-                      >
-                        <ChevronDown
-                          size={18}
-                          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
-                        />
-                      </button>
+                      
                     </div>
                   </div>
 
@@ -2785,8 +2764,11 @@ export default function RutinaTracker() {
       )}
     </div>
       {timerConfirmExercise && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onPointerDown={(e) => { if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setTimerConfirmExercise(null); suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); } }}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
             <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
             <p className="text-sm text-neutral-300">
               ¿Querés iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise.name}</span>?
