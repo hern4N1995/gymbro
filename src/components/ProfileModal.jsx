@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { X, User, Dumbbell, Ruler, Calendar, SlidersHorizontal, Key } from "lucide-react";
 import supabase from "../../supabaseClient";
 import InfoModal from "./InfoModal";
 import { PrimaryButton, SecondaryButton } from "./Button";
+import useClickOutside from "../hooks/useClickOutside";
 
 export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }) {
   const [name, setName] = useState('');
@@ -53,6 +54,8 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
   const [pwOpen, setPwOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const containerRef = useRef(null);
+  useClickOutside(containerRef, onClose, true);
 
   const changePassword = async () => {
     if (!newPassword) return alert('Ingresa la nueva contraseña');
@@ -70,8 +73,8 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
 
   return (
     <div className="fixed inset-0 z-50 p-0 sm:p-4">
-      <div className="fixed inset-0 bg-black/60 sm:hidden" onClick={onClose} />
-      <div className="relative mx-auto bg-[#111214] border border-neutral-800 rounded-2xl w-full h-full sm:h-auto sm:max-w-md overflow-auto">
+      <div className="fixed inset-0 bg-black/60" />
+      <div ref={containerRef} className="relative mx-auto bg-[#111214] border border-neutral-800 rounded-2xl w-full h-full sm:h-auto sm:max-w-md overflow-auto">
         <div className="px-4 py-3.5 border-b border-neutral-800 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h3 className="font-bold text-sm text-neutral-100">Perfil</h3>
@@ -85,32 +88,32 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
         <div className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre</label>
-              <input placeholder="Ej. Juan Pérez" value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase flex items-center gap-2"><User size={14} className="text-neutral-400" />Nombre</label>
+              <input placeholder="Ej. Juan Pérez" value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
               <div className="help-chip mt-1">El nombre que se mostrará en la app.</div>
             </div>
 
             <div>
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Peso (kg)</label>
-              <input placeholder="Ej. 75" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase flex items-center gap-2"><Dumbbell size={14} className="text-neutral-400" />Peso (kg)</label>
+              <input placeholder="Ej. 75" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
               <div className="help-chip mt-1">Introduce tu peso en kilogramos (kg).</div>
             </div>
 
             <div>
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Altura (cm)</label>
-              <input placeholder="Ej. 175" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase flex items-center gap-2"><Ruler size={14} className="text-neutral-400" />Altura (cm)</label>
+              <input placeholder="Ej. 175" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
               <div className="help-chip mt-1">Altura en centímetros (cm).</div>
             </div>
 
             <div>
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Edad</label>
-              <input placeholder="Ej. 30" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm" />
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase flex items-center gap-2"><Calendar size={14} className="text-neutral-400" />Edad</label>
+              <input placeholder="Ej. 30" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
               <div className="help-chip mt-1">Edad en años.</div>
             </div>
 
             <div>
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Tipo de usuario</label>
-              <select value={profile} onChange={(e) => setProfile(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm">
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase flex items-center gap-2"><SlidersHorizontal size={14} className="text-neutral-400" />Tipo de usuario</label>
+              <select value={profile} onChange={(e) => setProfile(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white">
                 <option>Principiante</option>
                 <option>Volviendo tras un parate</option>
                 <option>Intermedio</option>
@@ -137,8 +140,8 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
           <SecondaryButton onClick={() => setPwOpen(!pwOpen)} className="w-full text-left">Cambiar contraseña</SecondaryButton>
           {pwOpen && (
             <div className="mt-3 grid grid-cols-1 gap-2">
-              <input type="password" placeholder="Nueva contraseña" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-[#0F1112] border border-neutral-700" />
-              <input type="password" placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-[#0F1112] border border-neutral-700" />
+              <input type="password" placeholder="Nueva contraseña" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
+              <input type="password" placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
               <div className="flex gap-2">
                 <PrimaryButton onClick={changePassword} className="flex-1">Actualizar contraseña</PrimaryButton>
                 <SecondaryButton onClick={() => { setPwOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="flex-1">Cancelar</SecondaryButton>
@@ -149,7 +152,12 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
           <div className="flex flex-col sm:flex-row gap-2 mt-4">
             <PrimaryButton onClick={save} className="flex-1">Guardar</PrimaryButton>
             <SecondaryButton onClick={onClose} className="flex-1">Cancelar</SecondaryButton>
-            <button onClick={async () => { try { await supabase.auth.signOut(); onClose && onClose(); } catch(e){ console.error(e); } }} className="flex-1 bg-red-600 px-3 py-2 rounded-xl text-white">Cerrar Sesión</button>
+          </div>
+
+          <div className="mt-4 border-t border-neutral-800 pt-3">
+            <button onClick={async () => { try { await supabase.auth.signOut(); onClose && onClose(); } catch(e){ console.error(e); } }} className="w-full flex items-center justify-center gap-2 border border-red-500/40 text-red-400 px-3 py-2 rounded-xl bg-transparent">
+              <Key size={16} /> Cerrar Sesión
+            </button>
           </div>
         </div>
 

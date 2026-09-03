@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User, GripVertical } from "lucide-react";
 import InfoModal from "./src/components/InfoModal";
 import { PrimaryButton, SecondaryButton } from "./src/components/Button";
@@ -7,6 +7,7 @@ import RestTimer from "./src/components/RestTimer";
 import ProfileModal from "./src/components/ProfileModal";
 import Analytics from "./src/components/Analytics";
 import ExerciseList from "./src/components/ExerciseList";
+import useClickOutside from "./src/hooks/useClickOutside";
 import { restDefaultByExercise, estimate1RM, volumeSeries } from "./src/utils/fitnessHelpers";
 import EXERCISE_MUSCLE_MAP from "./src/config/muscleMapping";
 import { DndContext, useSensor, useSensors, PointerSensor, KeyboardSensor } from '@dnd-kit/core';
@@ -323,6 +324,7 @@ export default function RutinaTracker() {
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuReady, setMenuReady] = useState(false);
   const [performanceAlert, setPerformanceAlert] = useState(null);
   const pillsRef = React.useRef(null);
   const [showRightFade, setShowRightFade] = useState(false);
@@ -336,6 +338,33 @@ export default function RutinaTracker() {
   const radialMenuTriggerRef = React.useRef(null);
   const expandedRefs = React.useRef({});
   const suppressClickAfterModalCloseRef = React.useRef(false);
+
+  const createDayRef = React.useRef(null);
+  const manageDayRef = React.useRef(null);
+  const editExRef = React.useRef(null);
+  const historyModalRef = React.useRef(null);
+  const timerConfirmRef = React.useRef(null);
+  const timerConfigRef = React.useRef(null);
+  const templateManagerRef = React.useRef(null);
+
+  useClickOutside(createDayRef, () => setShowCreateDaySheet(false), showCreateDaySheet);
+  useClickOutside(manageDayRef, () => setShowManageDay(false), showManageDay);
+  useClickOutside(editExRef, () => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }, isEditMode);
+  useClickOutside(historyModalRef, () => setShowHistoryModal(null), Boolean(showHistoryModal));
+  useClickOutside(timerConfirmRef, () => { setTimerConfirmExercise(null); suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); }, Boolean(timerConfirmExercise));
+  useClickOutside(timerConfigRef, () => setTimerConfigOpen(null), Boolean(timerConfigOpen));
+  useClickOutside(templateManagerRef, () => setShowTemplateManager(false), Boolean(showTemplateManager));
+
+  useEffect(() => {
+    let t = null;
+    if (menuOpen) {
+      setMenuReady(false);
+      t = setTimeout(() => setMenuReady(true), 260);
+    } else {
+      setMenuReady(false);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [menuOpen]);
 
   const closeTopLevelOverlay = useCallback(() => {
     if (showCreateDaySheet) {
@@ -512,6 +541,11 @@ export default function RutinaTracker() {
       if (radialMenuTriggerRef.current && radialMenuTriggerRef.current.contains(target)) return;
       if (radialMenuRef.current && radialMenuRef.current.contains(target)) return;
       setMenuOpen(false);
+      try {
+        if (radialMenuTriggerRef.current && typeof radialMenuTriggerRef.current.blur === 'function') {
+          radialMenuTriggerRef.current.blur();
+        }
+      } catch (e) {}
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -1100,6 +1134,32 @@ export default function RutinaTracker() {
     longPressTimerRef.current = setTimeout(() => {
       suppressClickRef.current = true;
       setSelectedDay(dayId);
+      try {
+        const container = pillsRef?.current;
+        const anchor = container ? container.querySelector(`[data-pill-day-id="${dayId}"]`) : document.querySelector(`[data-pill-day-id="${dayId}"]`);
+        if (container && anchor) {
+          const cRect = container.getBoundingClientRect();
+          const aRect = anchor.getBoundingClientRect();
+          // space reserved on right for the Add button and padding
+          const reservedRight = 96; // matches paddingRight used earlier
+          const visibleRight = cRect.right - reservedRight;
+          // if anchor's right edge is beyond visibleRight - threshold, scroll left
+          const threshold = 12;
+          if (aRect.right > (visibleRight - threshold)) {
+            const delta = Math.ceil(aRect.right - (visibleRight - threshold));
+            // limit how far we shift so it doesn't move too much
+            const maxShift = 48;
+            const shift = Math.min(delta + 8, maxShift);
+            // scroll container to the right (increasing scrollLeft) so the anchor moves left
+            container.scrollBy({ left: shift, behavior: 'smooth' });
+            // open menu after a short delay to let scrolling finish
+            setTimeout(() => openDayActionMenu(dayId), 180);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
       openDayActionMenu(dayId);
     }, 500);
   };
@@ -1763,6 +1823,7 @@ export default function RutinaTracker() {
           <div className="mt-4">
             <button onClick={signInWithGoogle} className="w-full bg-white text-black font-bold py-2 rounded-lg">Iniciar con Google</button>
           </div>
+          {/* gear removed from login view; appears after session starts */}
           {errorMsg && <div className="mt-3 text-sm text-red-400">{errorMsg}</div>}
         </div>
       </div>
@@ -1809,7 +1870,7 @@ export default function RutinaTracker() {
               if (e.target === e.currentTarget) setShowCreateDaySheet(false);
             }}
           >
-            <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-base font-bold text-white">Crear día</h3>
@@ -1901,7 +1962,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Perfil"
-                  onClick={() => { setShowProfile(true); setMenuOpen(false); }}
+                  onClick={() => { if (!menuReady) return; setShowProfile(true); setMenuOpen(false); }}
                   className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -1917,7 +1978,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Analíticas"
-                  onClick={() => { setShowAnalytics(true); setMenuOpen(false); }}
+                  onClick={() => { if (!menuReady) return; setShowAnalytics(true); setMenuOpen(false); }}
                   className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -1933,7 +1994,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Mis rutinas"
-                  onClick={() => { setShowTemplateManager(true); setMenuOpen(false); }}
+                  onClick={() => { if (!menuReady) return; setShowTemplateManager(true); setMenuOpen(false); }}
                   className="pointer-events-auto absolute left-[18px] top-[62px] flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -1949,7 +2010,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Cerrar sesión"
-                  onClick={() => { handleSignOut(); setMenuOpen(false); }}
+                  onClick={() => { if (!menuReady) return; handleSignOut(); setMenuOpen(false); }}
                   className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -1984,7 +2045,7 @@ export default function RutinaTracker() {
       )}
 
           <div className="relative px-4">
-            <div className="flex items-center gap-2 py-3">
+            <div className="flex items-center gap-1 py-1">
               <div
                 ref={pillsRef}
                 className={`relative flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar ${routine.length <= 2 ? 'justify-center' : 'justify-start'}`}
@@ -2024,8 +2085,8 @@ export default function RutinaTracker() {
 
                       <div
                         id={`day-action-row-${d.id}`}
-                        className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                        style={{ width: isActionOpen ? '34px' : '0px', opacity: isActionOpen ? 1 : 0, zIndex: 10 }}
+                        className="relative z-40 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                        style={{ width: isActionOpen ? '34px' : '0px', opacity: isActionOpen ? 1 : 0, zIndex: 40 }}
                       >
                         <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: isActionOpen ? 1 : 0 }}>
                           <button
@@ -2065,16 +2126,16 @@ export default function RutinaTracker() {
                   );
                 })}
 
-                {/* fade overlay removed while debugging persistent shading */}
+                {/* Gradient overlay removed — revert to original layout */}
               </div>
 
-              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={openCreateDaySheet}
                   disabled={!availableWeekdays.length}
                   aria-label="Añadir día"
-                  className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112]"
+                  className="relative z-20 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112] shadow-lg"
                   style={{ backgroundColor: '#0F1112' }}
                 >
                   <Plus size={16} />
@@ -2099,105 +2160,107 @@ export default function RutinaTracker() {
       )}
 
       {isEditMode && (
-        <div className="mx-4 mb-4 p-4 rounded-2xl bg-[#1B1D21] border border-amber-500/40">
-          <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
-            <Edit3 size={15} />
-            {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
-          </h3>
-          <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
-            <input
-              type="hidden"
-              name="day_id"
-              value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')}
-            />
-            <div>
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); } }}>
+          <div ref={editExRef} className="w-full max-w-md rounded-2xl bg-[#1B1D21] border border-amber-500/40 p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
+              <Edit3 size={15} />
+              {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
+            </h3>
+            <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
               <input
-                name="name"
-                defaultValue={editingEx?.name || ""}
-                required
-                placeholder="Ej: Press Banca Plano"
-                className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                type="hidden"
+                name="day_id"
+                value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')}
               />
-            </div>
-            <div>
-              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
-              <select
-                name="muscle_group"
-                defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"}
-                required
-                className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-              >
-                <option>Pecho</option>
-                <option>Espalda</option>
-                <option>Hombro</option>
-                <option>Bíceps</option>
-                <option>Tríceps</option>
-                <option>Pierna</option>
-                <option>Otros</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Series</label>
+                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
                 <input
-                  name="sets"
-                  type="number"
-                  defaultValue={editingEx?.sets || 3}
+                  name="name"
+                  defaultValue={editingEx?.name || ""}
+                  required
+                  placeholder="Ej: Press Banca Plano"
+                  className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
+                <select
+                  name="muscle_group"
+                  defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"}
                   required
                   className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                />
+                >
+                  <option>Pecho</option>
+                  <option>Espalda</option>
+                  <option>Hombro</option>
+                  <option>Bíceps</option>
+                  <option>Tríceps</option>
+                  <option>Pierna</option>
+                  <option>Otros</option>
+                </select>
               </div>
-              <div>
-                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Reps Obj.</label>
-                <input
-                  name="reps"
-                  defaultValue={editingEx?.reps || "10-12"}
-                  required
-                  className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Series</label>
+                  <input
+                    name="sets"
+                    type="number"
+                    defaultValue={editingEx?.sets || 3}
+                    required
+                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Reps Obj.</label>
+                  <input
+                    name="reps"
+                    defaultValue={editingEx?.reps || "10-12"}
+                    required
+                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-neutral-400 font-semibold uppercase">RIR</label>
-                <input
-                  name="rir"
-                  defaultValue={editingEx?.rir || "1-2"}
-                  className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">RIR</label>
+                  <input
+                    name="rir"
+                    defaultValue={editingEx?.rir || "1-2"}
+                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
+                  <input
+                    name="rest"
+                    defaultValue={formatRestLabel(editingEx?.rest) || "90s"}
+                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
-                <input
-                  name="rest"
-                  defaultValue={formatRestLabel(editingEx?.rest) || "90s"}
-                  className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                />
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="submit"
+                  className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase"
+                >
+                  {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}
+                  className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
+                >
+                  Cancelar
+                </button>
               </div>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button
-                type="submit"
-                className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase"
-              >
-                {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}
-                className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
       {showManageDay && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+          <div ref={manageDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-bold text-white">Gestionar día</h3>
@@ -2276,7 +2339,7 @@ export default function RutinaTracker() {
             if (e.target === e.currentTarget) setShowCreateDaySheet(false);
           }}
         >
-          <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-bold text-white">Crear día</h3>
@@ -2656,7 +2719,7 @@ export default function RutinaTracker() {
             if (e.target === e.currentTarget) setShowHistoryModal(null);
           }}
         >
-          <div className="bg-[#1B1D21] border border-neutral-800 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div ref={historyModalRef} className="bg-[#1B1D21] border border-neutral-800 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-4 py-3.5 border-b border-neutral-800 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h3 className="font-bold text-sm text-neutral-100 break-words">
@@ -2768,7 +2831,7 @@ export default function RutinaTracker() {
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
           onPointerDown={(e) => { if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setTimerConfirmExercise(null); suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); } }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
+          <div ref={timerConfirmRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
             <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
             <p className="text-sm text-neutral-300">
               ¿Querés iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise.name}</span>?
@@ -2798,10 +2861,10 @@ export default function RutinaTracker() {
       )}
       {timerConfigOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+          <div ref={timerConfigRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-bold text-white">Configuración temporizador</div>
-              <button type="button" onClick={() => setTimerConfigOpen(null)} className="min-h-[44px] min-w-[44px] rounded-full bg-neutral-800 p-2 text-neutral-300"><X size={18} /></button>
+              <button type="button" onClick={() => setTimerConfigOpen(null)} className="min-h-[44px] min-w-[44px] rounded-full bg-neutral-800 inline-flex items-center justify-center text-neutral-300"><X size={18} /></button>
             </div>
             <div className="flex flex-col gap-3">
               <div>
@@ -2840,7 +2903,7 @@ export default function RutinaTracker() {
       )}
       {showTemplateManager && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) setShowTemplateManager(false); }}>
-          <div className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div ref={templateManagerRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-bold text-white">Mis rutinas</h3>

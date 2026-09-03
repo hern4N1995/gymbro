@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { X } from "lucide-react";
 import supabase from "../../supabaseClient";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 import { estimate1RM, volumeSeries } from "../utils/fitnessHelpers";
 import EXERCISE_MUSCLE_MAP from "../config/muscleMapping";
 import { PrimaryButton, SecondaryButton } from "./Button";
+import useClickOutside from "../hooks/useClickOutside";
 
 export default function Analytics({ user, onClose }) {
   const [hist, setHist] = useState([]);
@@ -115,10 +116,13 @@ export default function Analytics({ user, onClose }) {
     return [0, step, step * 2, step * 3, step * 4];
   }, [weeklyMax]);
 
+  const containerRef = useRef(null);
+  useClickOutside(containerRef, onClose, true);
+
   return (
     <div className="fixed inset-0 z-50 p-0 sm:p-4 flex items-start sm:items-center justify-center">
-      <div className="fixed inset-0 bg-black/60 sm:hidden" onClick={() => onClose && onClose()} />
-      <div className="relative bg-[#111214] border border-neutral-800 rounded-none sm:rounded-2xl w-full h-full sm:h-auto sm:max-w-4xl overflow-auto p-4">
+      <div className="fixed inset-0 bg-black/60" />
+      <div ref={containerRef} className="relative bg-[#111214] border border-neutral-800 rounded-none sm:rounded-2xl w-full h-full sm:h-auto sm:max-w-4xl overflow-auto p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold">Analíticas & Progreso</h3>
           <button
