@@ -123,9 +123,9 @@ const PortfolioFooter = () => (
       target="_blank"
       rel="noreferrer"
       className="inline-block text-[11px] text-neutral-500 transition-opacity hover:opacity-100"
-      style={{ fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+      style={{ fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif' }}
     >
-      desarrollado por <span className="font-bold" style={{ color: '#b45e30' }}>hern4N</span>
+      desarrollado por&nbsp;&nbsp;<span className="font-bold" style={{ color: '#b45e30', fontFamily: '"Exo 2", "Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif', fontStyle: 'italic' }}>hern4N</span>
     </a>
   </div>
 );
@@ -399,6 +399,72 @@ export default function RutinaTracker() {
     }
     return () => { if (t) clearTimeout(t); };
   }, [menuOpen]);
+
+  const handleDeleteAccount = async () => {
+    if (!session?.user) {
+      setErrorMsg('No se pudo confirmar la sesión para eliminar la cuenta.');
+      return;
+    }
+
+    const confirmed = window.confirm('¿Seguro que querés eliminar tu cuenta? Esta acción borrará tu perfil y tus datos guardados.');
+    if (!confirmed) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: session.user.id },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        await supabase.auth.signOut();
+        setMenuOpen(false);
+        setErrorMsg('Cuenta eliminada correctamente.');
+        return;
+      }
+
+      throw new Error(data?.message || 'No se pudo completar la eliminación de la cuenta.');
+    } catch (err) {
+      console.error('delete account error', err);
+      setErrorMsg('Todavía no está configurada la eliminación de cuenta en Supabase. Debe crearse la función delete-user en el backend.');
+    }
+  };
+
+  const handleOptionsAction = async (action) => {
+    if (!menuReady) return;
+    setMenuOpen(false);
+
+    if (action === 'profile') {
+      setShowProfile(true);
+      return;
+    }
+
+    if (action === 'analytics') {
+      setShowAnalytics(true);
+      return;
+    }
+
+    if (action === 'templates') {
+      if (!routine.length) {
+        setErrorMsg('Creá tu primer día y agregá ejercicios antes de guardar o cargar una rutina.');
+        setShowCreateDaySheet(true);
+        return;
+      }
+      setShowTemplateManager(true);
+      return;
+    }
+
+    if (action === 'logout') {
+      handleSignOut();
+      return;
+    }
+
+    if (action === 'deleteAccount') {
+      await handleDeleteAccount();
+    }
+  };
 
   const closeTopLevelOverlay = useCallback(() => {
     if (showCreateDaySheet) {
@@ -1780,6 +1846,22 @@ export default function RutinaTracker() {
   };
 
   // --- Autenticación (login / registro) ---
+  const translateAuthErrorMessage = (message) => {
+    const text = typeof message === 'string' ? message : '';
+    const lower = text.toLowerCase();
+
+    if (!text) return 'No se pudo completar la operación.';
+    if (lower.includes('invalid login credentials') || lower.includes('email or password is invalid') || lower.includes('invalid email or password')) return 'Email o contraseña incorrectos.';
+    if (lower.includes('user already registered') || lower.includes('already registered') || lower.includes('user already exists') || lower.includes('already exists')) return 'Este email ya está registrado.';
+    if (lower.includes('password should be at least') || lower.includes('password is too weak') || lower.includes('weak password')) return 'La contraseña es demasiado débil. Usá al menos 8 caracteres con letras y números.';
+    if (lower.includes('email not confirmed') || lower.includes('confirm your email')) return 'Debés confirmar tu email antes de iniciar sesión.';
+    if (lower.includes('sign in with password is not allowed') || lower.includes('password sign in is disabled')) return 'Este usuario no puede iniciar sesión con contraseña.';
+    if (lower.includes('captcha') || lower.includes('robot')) return 'La verificación falló. Intentá nuevamente.';
+    if (lower.includes('network request failed') || lower.includes('fetch') || lower.includes('failed to fetch')) return 'No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.';
+    if (lower.includes('oauth') || lower.includes('provider')) return 'No se pudo iniciar sesión con Google.';
+    return text;
+  };
+
   const handleSignIn = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -1790,7 +1872,7 @@ export default function RutinaTracker() {
       if (error) throw error;
       setErrorMsg("");
     } catch (err) {
-      setErrorMsg(err.message || "No se pudo iniciar sesión");
+      setErrorMsg(translateAuthErrorMessage(err?.message || 'No se pudo iniciar sesión'));
     }
   };
 
@@ -1817,7 +1899,7 @@ export default function RutinaTracker() {
       const res = await supabase.auth.signUp({ email, password });
       console.log('supabase.signUp response', res);
       if (res.error) {
-        setErrorMsg(res.error.message || 'Error al registrarse');
+        setErrorMsg(translateAuthErrorMessage(res.error.message || 'Error al registrarse'));
         return;
       }
       setNoticeMsg("Revisa tu correo para confirmar la cuenta antes de iniciar sesión.");
@@ -1825,7 +1907,7 @@ export default function RutinaTracker() {
       // clear password field for security
       try { formEl.querySelector('input[name=password]').value = ''; } catch {}
     } catch (err) {
-      setErrorMsg(err.message || "No se pudo crear la cuenta");
+      setErrorMsg(translateAuthErrorMessage(err?.message || 'No se pudo crear la cuenta'));
     }
   };
 
@@ -1837,10 +1919,12 @@ export default function RutinaTracker() {
         setErrorMsg('Google sign-in no está configurado: faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
         return;
       }
-      await supabase.auth.signInWithOAuth({ provider: 'google' }, { redirectTo: window.location.origin });
+
+      const redirectTarget = import.meta.env.VITE_APP_URL || 'https://gymbrorutinas.vercel.app';
+      await supabase.auth.signInWithOAuth({ provider: 'google' }, { redirectTo: redirectTarget });
     } catch (err) {
       console.error('signInWithGoogle error', err);
-      setErrorMsg(err?.message || 'Error OAuth');
+      setErrorMsg(translateAuthErrorMessage(err?.message || 'Error OAuth'));
     }
   };
 
@@ -1857,10 +1941,10 @@ export default function RutinaTracker() {
   if (!session || !session.user) {
     return (
       <div className="fixed inset-0 overflow-hidden bg-[#111214] text-neutral-100">
-        <div className="relative flex h-full w-full items-center justify-center px-4 py-6">
+        <div className="relative flex h-full w-full items-center justify-center px-4 py-6 -mt-4 sm:-mt-6">
           <div className="flex w-full max-w-md flex-col items-center">
-            <img src="/android-chrome-512x512.png" alt="GymBro logo" className="w-64 h-64 sm:w-80 sm:h-80 object-contain" />
-            <div className="mt-[-0.75rem] w-full rounded-2xl border border-neutral-800 bg-[#0F1112] p-6">
+            <img src="/android-chrome-512x512.png" alt="GymBro logo" className="w-64 h-64 sm:w-80 sm:h-80 object-contain -mt-12 sm:-mt-16" />
+            <div className="mt-1 w-full rounded-2xl border border-neutral-800 bg-[#0F1112] p-6">
               <h2 className="mb-4 text-xl font-black">Iniciar sesión / Registrarse</h2>
               <form onSubmit={handleSignIn} className="flex flex-col gap-3">
                 <input name="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
@@ -1898,8 +1982,9 @@ export default function RutinaTracker() {
   // Si el usuario no tiene días creados, cortar el flujo antes de cualquier acceso a day.exercises.
   if (routine.length === 0) {
     return (
-      <div className="h-screen w-full overflow-hidden bg-[#111214] text-neutral-100 font-sans mobile-tight">
-        <div className="relative px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
+      <div className="relative h-screen w-full overflow-hidden bg-[#111214] text-neutral-100 font-sans mobile-tight">
+        <div className="relative z-10 flex h-full flex-col">
+          <div className="px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">
               <Dumbbell size={13} strokeWidth={2.5} className="text-neutral-500" />
@@ -1913,19 +1998,119 @@ export default function RutinaTracker() {
               <span className="text-white">&nbsp;</span>
             </h1>
           </div>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex items-center">
+            <div className="relative flex items-center justify-center">
+              <div
+                ref={radialMenuRef}
+                className="pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                style={{
+                  opacity: menuOpen ? 1 : 0,
+                  width: '120px',
+                  height: '120px',
+                  transform: `translate3d(${menuOpen ? '0px' : '12px'}, -60px, 0) scale(${menuOpen ? 1 : 0.35})`,
+                  transformOrigin: 'center center',
+                  pointerEvents: menuOpen ? 'auto' : 'none',
+                }}
+              >
+                <div className="relative h-[120px] w-[120px] opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: menuOpen ? 1 : 0 }}>
+                  <button
+                    type="button"
+                    aria-label="Perfil"
+                    onClick={() => handleOptionsAction('profile')}
+                    className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      minHeight: 32,
+                      transform: menuOpen ? 'translateX(2px) translate(-50%, 0) scale(1)' : 'translateX(-6px) translate(-50%, 12px) scale(0.45)',
+                      opacity: menuOpen ? 1 : 0,
+                    }}
+                  >
+                    <User size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Analíticas"
+                    onClick={() => handleOptionsAction('analytics')}
+                    className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      minHeight: 32,
+                      transform: menuOpen ? 'translateX(2px) scale(1)' : 'translateX(10px) translateY(10px) scale(0.45)',
+                      opacity: menuOpen ? 1 : 0,
+                    }}
+                  >
+                    <Calendar size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Mis rutinas"
+                    onClick={() => handleOptionsAction('templates')}
+                    className="pointer-events-auto absolute left-[18px] top-[62px] flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      minHeight: 32,
+                      transform: menuOpen ? 'translateX(2px) scale(1)' : 'translateX(10px) translateY(14px) scale(0.45)',
+                      opacity: menuOpen ? 1 : 0,
+                    }}
+                  >
+                    <ListPlus size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Cerrar sesión"
+                    onClick={() => handleOptionsAction('logout')}
+                    className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      minHeight: 32,
+                      transform: menuOpen ? 'translateX(2px) translate(-50%, 0) scale(1)' : 'translateX(-6px) translate(-50%, 18px) scale(0.45)',
+                      opacity: menuOpen ? 1 : 0,
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                ref={radialMenuTriggerRef}
+                type="button"
+                aria-label="Opciones"
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white"
+              >
+                <Settings size={16} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
-          <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
-          <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
-          <button
-            type="button"
-            onClick={openCreateDaySheet}
-            disabled={!availableWeekdays.length}
-            className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Crear primer día
-          </button>
+          <div className="flex-1 flex flex-col justify-start">
+            <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
+              <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
+              <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
+              <button
+                type="button"
+                onClick={openCreateDaySheet}
+                disabled={!availableWeekdays.length}
+                className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Crear primer día
+              </button>
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 z-20">
+            <PortfolioFooter />
+          </div>
         </div>
 
         {showCreateDaySheet && (
@@ -1980,14 +2165,118 @@ export default function RutinaTracker() {
             </div>
           </div>
         )}
-        <PortfolioFooter />
+
+        {showTemplateManager && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) setShowTemplateManager(false); }}>
+            <div ref={templateManagerRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-bold text-white">Mis rutinas</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateManager(false)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+                  aria-label="Cerrar"
+                >
+                  <X size={18} className="shrink-0 leading-none" />
+                </button>
+              </div>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Guardar rutina actual</div>
+                  <div className="flex gap-2">
+                    <input
+                      value={saveTemplateName}
+                      onChange={(e) => setSaveTemplateName(e.target.value)}
+                      placeholder="Nombre de la rutina"
+                      className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+                    />
+                    <select
+                      value={saveTemplateSlot}
+                      onChange={(e) => setSaveTemplateSlot(Number(e.target.value))}
+                      className="min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-2 py-2 text-sm text-white"
+                    >
+                      {TEMPLATE_SLOT_OPTIONS.map((slot) => (
+                        <option key={slot} value={slot}>Slot {slot}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await saveTemplate();
+                      if (ok) setShowTemplateManager(false);
+                    }}
+                    className="mt-3 w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
+                  >
+                    Guardar
+                  </button>
+                </div>
+                <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Plantillas guardadas</div>
+                  {templates.length === 0 ? (
+                    <div className="text-sm text-neutral-400">Todavía no tenés plantillas guardadas.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {templates.map((template) => (
+                        <div key={template.id} className="rounded-lg border border-neutral-700 bg-[#1A1C1F] p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-semibold text-white">{template.name || 'Rutina'}</div>
+                              <div className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Slot {template.slot_number}</div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleLoadTemplate(template)}
+                                className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200"
+                              >
+                                Cargar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const nextName = window.prompt('Renombrar plantilla', template.name || 'Rutina');
+                                  if (nextName === null) return;
+                                  const ok = await renameTemplate(template.id, nextName);
+                                  if (ok) setShowTemplateManager(false);
+                                }}
+                                className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200"
+                              >
+                                Ren.
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (window.confirm('¿Borrar esta plantilla?')) {
+                                    const ok = await deleteTemplate(template.id);
+                                    if (ok) setShowTemplateManager(false);
+                                  }
+                                }}
+                                className="min-h-[36px] rounded-lg bg-red-900/35 px-2 text-xs font-semibold text-red-200"
+                              >
+                                Borrar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {showProfile && session?.user && <ProfileModal onClose={() => setShowProfile(false)} user={session.user} onSaved={(n)=>setProfileName(n)} />}
+        {showAnalytics && session?.user && <Analytics onClose={() => setShowAnalytics(false)} user={session.user} />}
       </div>
     );
   }
 
   return (
     <>
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight flex flex-col">
       {loadingRoutine && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,18,20,0.6)' }}>
           <div className="bg-[#0F1112] border border-neutral-800 rounded-lg p-4">Cargando rutina...</div>
@@ -2028,7 +2317,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Perfil"
-                  onClick={() => { if (!menuReady) return; setShowProfile(true); setMenuOpen(false); }}
+                  onClick={() => handleOptionsAction('profile')}
                   className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2044,7 +2333,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Analíticas"
-                  onClick={() => { if (!menuReady) return; setShowAnalytics(true); setMenuOpen(false); }}
+                  onClick={() => handleOptionsAction('analytics')}
                   className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2060,7 +2349,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Mis rutinas"
-                  onClick={() => { if (!menuReady) return; setShowTemplateManager(true); setMenuOpen(false); }}
+                  onClick={() => handleOptionsAction('templates')}
                   className="pointer-events-auto absolute left-[18px] top-[62px] flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2076,7 +2365,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Cerrar sesión"
-                  onClick={() => { if (!menuReady) return; handleSignOut(); setMenuOpen(false); }}
+                  onClick={() => handleOptionsAction('logout')}
                   className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2111,10 +2400,10 @@ export default function RutinaTracker() {
       )}
 
           <div className="relative px-4">
-            <div className="flex items-center gap-1 py-1">
+            <div className="flex items-center justify-start gap-1 py-1">
               <div
                 ref={pillsRef}
-                className={`relative flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar ${routine.length <= 2 ? 'justify-center' : 'justify-start'}`}
+                className={`relative flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar ${routine.length <= 2 ? 'justify-start' : 'justify-start'}`}
                 style={{ paddingRight: 96 }}
               >
                 {routine.map((d) => {
@@ -2226,104 +2515,103 @@ export default function RutinaTracker() {
       )}
 
       {isEditMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); } }}>
-          <div ref={editExRef} className="w-full max-w-md rounded-2xl bg-[#1B1D21] border border-amber-500/40 p-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
-              <Edit3 size={15} />
-              {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
-            </h3>
-            <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
-              <input
-                type="hidden"
-                name="day_id"
-                value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')}
-              />
-              <div>
-                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); } }}>
+            <div ref={editExRef} className="w-full max-w-md rounded-2xl bg-[#1B1D21] border border-amber-500/40 p-4" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
+                <Edit3 size={15} />
+                {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
+              </h3>
+              <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
                 <input
-                  name="name"
-                  defaultValue={editingEx?.name || ""}
-                  required
-                  placeholder="Ej: Press Banca Plano"
-                  className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                  type="hidden"
+                  name="day_id"
+                  value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')}
                 />
-              </div>
-              <div>
-                <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
-                <select
-                  name="muscle_group"
-                  defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"}
-                  required
-                  className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                >
-                  <option>Pecho</option>
-                  <option>Espalda</option>
-                  <option>Hombro</option>
-                  <option>Bíceps</option>
-                  <option>Tríceps</option>
-                  <option>Pierna</option>
-                  <option>Otros</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Series</label>
+                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
                   <input
-                    name="sets"
-                    type="number"
-                    defaultValue={editingEx?.sets || 3}
+                    name="name"
+                    defaultValue={editingEx?.name || ""}
+                    required
+                    placeholder="Ej: Press Banca Plano"
+                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
+                  <select
+                    name="muscle_group"
+                    defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"}
                     required
                     className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
+                  >
+                    <option>Pecho</option>
+                    <option>Espalda</option>
+                    <option>Hombro</option>
+                    <option>Bíceps</option>
+                    <option>Tríceps</option>
+                    <option>Pierna</option>
+                    <option>Otros</option>
+                  </select>
                 </div>
-                <div>
-                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Reps Obj.</label>
-                  <input
-                    name="reps"
-                    defaultValue={editingEx?.reps || "10-12"}
-                    required
-                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">Series</label>
+                    <input
+                      name="sets"
+                      type="number"
+                      defaultValue={editingEx?.sets || 3}
+                      required
+                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">Reps Obj.</label>
+                    <input
+                      name="reps"
+                      defaultValue={editingEx?.reps || "10-12"}
+                      required
+                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">RIR</label>
-                  <input
-                    name="rir"
-                    defaultValue={editingEx?.rir || "1-2"}
-                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">RIR</label>
+                    <input
+                      name="rir"
+                      defaultValue={editingEx?.rir || "1-2"}
+                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
+                    <input
+                      name="rest"
+                      defaultValue={formatRestLabel(editingEx?.rest) || "90s"}
+                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
-                  <input
-                    name="rest"
-                    defaultValue={formatRestLabel(editingEx?.rest) || "90s"}
-                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase"
+                  >
+                    {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}
+                    className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
+                  >
+                    Cancelar
+                  </button>
                 </div>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <button
-                  type="submit"
-                  className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase"
-                >
-                  {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}
-                  className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-
+        )}
       {showManageDay && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
           <div ref={manageDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
@@ -2528,7 +2816,7 @@ export default function RutinaTracker() {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
                       <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
-                        {ex.sets}×{ex.reps} · <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="underline text-neutral-400">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
+                        {ex.sets}×{ex.reps} · <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 text-neutral-400 hover:text-white">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
                       </div>
                       <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
                         {last
@@ -2848,17 +3136,17 @@ export default function RutinaTracker() {
         </div>
       )}
 
-      <div className="px-4 mt-2">
+      <div className="px-4 mt-2 w-full flex justify-center">
         {!confirmReset ? (
           <button
             onClick={() => setConfirmReset(true)}
-            className="w-full flex items-center justify-center gap-2 text-xs text-neutral-600 py-3 hover:text-red-400 transition-colors"
+            className="flex items-center justify-center gap-2 text-xs text-neutral-600 py-3 hover:text-red-400 transition-colors"
           >
             <RotateCcw size={12} /> Borrar todo mi historial de marcas
           </button>
         ) : (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 flex flex-col gap-2">
-            <p className="text-xs text-neutral-300">
+          <div className="w-full max-w-md rounded-xl border border-red-500/30 bg-red-500/5 p-3 flex flex-col gap-2">
+            <p className="text-xs text-neutral-300 text-center">
               Esto borra todos los registros guardados de marcas pasadas. La estructura de ejercicios se conservará.
             </p>
             <div className="flex gap-2">
@@ -2879,7 +3167,9 @@ export default function RutinaTracker() {
         )}
       </div>
 
-      <PortfolioFooter />
+      <div className="mt-auto w-full">
+        <PortfolioFooter />
+      </div>
 
       {backExitNotice && (
         <div

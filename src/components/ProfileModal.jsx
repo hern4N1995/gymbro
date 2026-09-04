@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, User, Dumbbell, Ruler, Calendar, SlidersHorizontal, Key } from "lucide-react";
+import { X, User, Dumbbell, Ruler, Calendar, SlidersHorizontal, Key, Check } from "lucide-react";
 import supabase from "../../supabaseClient";
 import InfoModal from "./InfoModal";
 import { PrimaryButton, SecondaryButton } from "./Button";
@@ -54,20 +54,38 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
   const [pwOpen, setPwOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordChecks, setPasswordChecks] = useState({ length: false, letters: false, numbers: false });
+  const [passwordValid, setPasswordValid] = useState(false);
   const containerRef = useRef(null);
   useClickOutside(containerRef, onClose, true);
 
+  useEffect(() => {
+    const p = String(newPassword || '');
+    const length = p.length >= 8;
+    const letters = /[A-Za-z]/.test(p);
+    const numbers = /\d/.test(p);
+    setPasswordChecks({ length, letters, numbers });
+    setPasswordValid(length && letters && numbers);
+  }, [newPassword]);
+
   const changePassword = async () => {
     if (!newPassword) return alert('Ingresa la nueva contraseña');
+    if (!passwordValid) return alert('La contraseña debe tener mínimo 8 caracteres e incluir letras y números.');
     if (newPassword !== confirmPassword) return alert('Las contraseñas no coinciden');
     try {
       const { error } = await supabase.auth.update({ password: newPassword });
       if (error) throw error;
-      alert('Contraseña actualizada. Usa la nueva contraseña en tu próximo inicio de sesión.');
+      alert('Contraseña actualizada. Usá la nueva contraseña en tu próximo inicio de sesión.');
       setNewPassword(''); setConfirmPassword(''); setPwOpen(false);
     } catch (e) {
       console.error('Error updating password', e);
-      alert('Error actualizando contraseña: ' + (e.message || e));
+      const message = e?.message || 'No se pudo actualizar la contraseña.';
+      const lower = String(message).toLowerCase();
+      if (lower.includes('weak password')) {
+        alert('La contraseña es demasiado débil. Usá al menos 8 caracteres con letras y números.');
+        return;
+      }
+      alert('No se pudo actualizar la contraseña: ' + message);
     }
   };
 
@@ -126,10 +144,10 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
 
         <div className="mt-3 text-sm px-4">
           <div>
-            <button onClick={() => setShowInfo('BMR')} className="font-semibold hover:underline">BMR:</button> {BMR} kcal/día
+            <button onClick={() => setShowInfo('BMR')} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 hover:text-white">BMR:</button> {BMR} kcal/día
           </div>
           <div>
-            <button onClick={() => setShowInfo('Protein')} className="font-semibold hover:underline">Proteína objetivo:</button> {protein} g/día
+            <button onClick={() => setShowInfo('Protein')} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 hover:text-white">Proteína objetivo:</button> {protein} g/día
           </div>
         </div>
 
@@ -142,9 +160,15 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
             <div className="mt-3 grid grid-cols-1 gap-2">
               <input type="password" placeholder="Nueva contraseña" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
               <input type="password" placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
+              <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
+              <div className="flex flex-wrap gap-2 text-[11px] mt-1">
+                <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>
+                <div className={`flex items-center gap-1 ${passwordChecks.letters ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Letras</div>
+                <div className={`flex items-center gap-1 ${passwordChecks.numbers ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Números</div>
+              </div>
               <div className="flex gap-2">
-                <PrimaryButton onClick={changePassword} className="flex-1">Actualizar contraseña</PrimaryButton>
-                <SecondaryButton onClick={() => { setPwOpen(false); setNewPassword(''); setConfirmPassword(''); }} className="flex-1">Cancelar</SecondaryButton>
+                <PrimaryButton onClick={changePassword} className="flex-1" disabled={!passwordValid}>Actualizar contraseña</PrimaryButton>
+                <SecondaryButton onClick={() => { setPwOpen(false); setNewPassword(''); setConfirmPassword(''); setPasswordValid(false); setPasswordChecks({ length: false, letters: false, numbers: false }); }} className="flex-1">Cancelar</SecondaryButton>
               </div>
             </div>
           )}
@@ -154,9 +178,34 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
             <SecondaryButton onClick={onClose} className="flex-1">Cancelar</SecondaryButton>
           </div>
 
-          <div className="mt-4 border-t border-neutral-800 pt-3">
+          <div className="mt-4 border-t border-neutral-800 pt-3 space-y-2">
             <button onClick={async () => { try { await supabase.auth.signOut(); onClose && onClose(); } catch(e){ console.error(e); } }} className="w-full flex items-center justify-center gap-2 border border-red-500/40 text-red-400 px-3 py-2 rounded-xl bg-transparent">
               <Key size={16} /> Cerrar Sesión
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const confirmed = window.confirm('¿Seguro que querés eliminar tu cuenta? Esta acción borrará tus datos guardados.');
+                if (!confirmed) return;
+                try {
+                  const { data, error } = await supabase.functions.invoke('delete-user', {
+                    body: { user_id: user.id },
+                  });
+                  if (error) throw error;
+                  if (data?.success) {
+                    await supabase.auth.signOut();
+                    onClose && onClose();
+                    return;
+                  }
+                  throw new Error(data?.message || 'No se pudo eliminar la cuenta.');
+                } catch (err) {
+                  console.error('delete account error', err);
+                  alert('Todavía no está configurada la eliminación de cuenta en Supabase. Debe crearse la función delete-user.');
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 border border-red-500/40 bg-red-500/5 text-red-300 px-3 py-2 rounded-xl hover:bg-red-500/10"
+            >
+              Eliminar cuenta
             </button>
           </div>
         </div>
