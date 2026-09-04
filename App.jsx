@@ -116,6 +116,20 @@ const displayDate = (iso) => {
   return `${d}/${m}/${y.slice(2)}`;
 };
 
+const PortfolioFooter = () => (
+  <div className="px-4 pb-4 pt-3 text-center">
+    <a
+      href="https://hernanalegre.vercel.app"
+      target="_blank"
+      rel="noreferrer"
+      className="inline-block text-[11px] text-neutral-500 transition-opacity hover:opacity-100"
+      style={{ fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+    >
+      desarrollado por <span className="font-bold" style={{ color: '#b45e30' }}>hern4N</span>
+    </a>
+  </div>
+);
+
 const normalizeRestValue = (value) => {
   if (value == null || value === '') return '90s';
   const raw = String(value).trim().toLowerCase();
@@ -1842,35 +1856,40 @@ export default function RutinaTracker() {
   // Mostrar pantalla de Login/Registro cuando no hay sesión
   if (!session || !session.user) {
     return (
-      <div className="min-h-screen w-full bg-[#111214] text-neutral-100 flex items-center justify-center p-4">
-        <div className="flex flex-col items-center w-full -mt-14">
-          <img src="/android-chrome-512x512.png" alt="GymBro logo" className="w-64 h-64 sm:w-80 sm:h-80 -mb-3 object-contain" />
-          <div className="w-full max-w-md bg-[#0F1112] border border-neutral-800 rounded-2xl p-6">
-            <h2 className="text-xl font-black mb-4">Iniciar sesión / Registrarse</h2>
-            <form onSubmit={handleSignIn} className="flex flex-col gap-3">
-              <input name="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
-              <input name="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} type="password" placeholder="Contraseña" autoComplete="current-password" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
-              <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
-              <div className="flex gap-3 text-xs mt-1">
-                <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>
-                <div className={`flex items-center gap-1 ${passwordChecks.letters ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Letras</div>
-                <div className={`flex items-center gap-1 ${passwordChecks.numbers ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Números</div>
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesión</button>
-                <button type="button" onClick={handleSignUp} disabled={!passwordValid || !signupEmail} className={`flex-1 font-bold py-2 rounded-lg ${(!passwordValid || !signupEmail) ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed' : 'bg-neutral-800 text-neutral-300'}`}>Registrarme</button>
-              </div>
-            </form>
+      <div className="fixed inset-0 overflow-hidden bg-[#111214] text-neutral-100">
+        <div className="relative flex h-full w-full items-center justify-center px-4 py-6">
+          <div className="flex w-full max-w-md flex-col items-center">
+            <img src="/android-chrome-512x512.png" alt="GymBro logo" className="w-64 h-64 sm:w-80 sm:h-80 object-contain" />
+            <div className="mt-[-0.75rem] w-full rounded-2xl border border-neutral-800 bg-[#0F1112] p-6">
+              <h2 className="mb-4 text-xl font-black">Iniciar sesión / Registrarse</h2>
+              <form onSubmit={handleSignIn} className="flex flex-col gap-3">
+                <input name="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+                <input name="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} type="password" placeholder="Contraseña" autoComplete="current-password" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+                <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
+                <div className="flex gap-3 text-xs mt-1">
+                  <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>
+                  <div className={`flex items-center gap-1 ${passwordChecks.letters ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Letras</div>
+                  <div className={`flex items-center gap-1 ${passwordChecks.numbers ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Números</div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesión</button>
+                  <button type="button" onClick={handleSignUp} disabled={!passwordValid || !signupEmail} className={`flex-1 font-bold py-2 rounded-lg ${(!passwordValid || !signupEmail) ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed' : 'bg-neutral-800 text-neutral-300'}`}>Registrarme</button>
+                </div>
+              </form>
               <div className="mt-4">
-              <button onClick={signInWithGoogle} className="w-full bg-white text-black font-bold py-2 rounded-lg flex items-center justify-center gap-2">
+                <button onClick={signInWithGoogle} className="w-full bg-white text-black font-bold py-2 rounded-lg flex items-center justify-center gap-2">
                   <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.9 0 6.6 1.7 8.1 3.1l6-6C34.9 3.6 29.9 1 24 1 14.9 1 7.3 6.8 3.7 14.8l7.1 5.5C12.8 15 17.9 9.5 24 9.5z"/><path fill="#34A853" d="M46.5 24.5c0-1.6-.1-2.9-.4-4.1H24v8.1h12.7c-.5 2.6-2 4.8-4.2 6.3l6.4 5c3.7-3.4 5.6-8.5 5.6-15.3z"/><path fill="#4A90E2" d="M10.8 28c-.7-2-1-4.1-1-6.2s.4-4.2 1-6.2L3.7 10.1C1.3 14 0 18.8 0 24s1.3 10 3.7 13.9l7.1-5.5z"/><path fill="#FBBC05" d="M24 46c6.6 0 12.2-2.2 16.4-6l-6.4-5c-2 1.4-4.6 2.2-8 2.2-6.1 0-11.2-5.5-12.5-12.7L3.7 34.9C7.3 42.9 14.9 48 24 48z"/></svg>
                   Iniciar con Google
-              </button>
+                </button>
+              </div>
+              {noticeMsg && <div className="mt-3 text-sm text-amber-400">{noticeMsg}</div>}
+              {errorMsg && <div className="mt-3 text-sm text-red-400">{errorMsg}</div>}
             </div>
-            {/* gear removed from login view; appears after session starts */}
-            {noticeMsg && <div className="mt-3 text-sm text-amber-400">{noticeMsg}</div>}
-            {errorMsg && <div className="mt-3 text-sm text-red-400">{errorMsg}</div>}
           </div>
+        </div>
+
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-center">
+          <PortfolioFooter />
         </div>
       </div>
     );
@@ -1879,7 +1898,7 @@ export default function RutinaTracker() {
   // Si el usuario no tiene días creados, cortar el flujo antes de cualquier acceso a day.exercises.
   if (routine.length === 0) {
     return (
-      <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-16 mobile-tight">
+      <div className="h-screen w-full overflow-hidden bg-[#111214] text-neutral-100 font-sans mobile-tight">
         <div className="relative px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">
@@ -1961,13 +1980,14 @@ export default function RutinaTracker() {
             </div>
           </div>
         )}
+        <PortfolioFooter />
       </div>
     );
   }
 
   return (
     <>
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-16 mobile-tight">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight">
       {loadingRoutine && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,18,20,0.6)' }}>
           <div className="bg-[#0F1112] border border-neutral-800 rounded-lg p-4">Cargando rutina...</div>
@@ -1983,9 +2003,9 @@ export default function RutinaTracker() {
               <div className="font-semibold">Bienvenido {profileName || 'Usuario'}</div>
               <div className="text-xs text-neutral-500">Hoy toca:</div>
             </div>
-            <h1 className="text-2xl font-black uppercase tracking-tight leading-none truncate text-white">
+            <h1 className="text-2xl font-black uppercase tracking-tight leading-none truncate text-white" style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
               <span className="text-white">{currentDayLabel}</span>
-              <span className="ml-2 text-base font-bold" style={{ color: plate.hex }}>
+              <span className="ml-2 text-base font-bold" style={{ color: plate.hex, fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
                 {currentDaySub}
               </span>
             </h1>
@@ -2828,7 +2848,7 @@ export default function RutinaTracker() {
         </div>
       )}
 
-      <div className="px-4 mt-8">
+      <div className="px-4 mt-2">
         {!confirmReset ? (
           <button
             onClick={() => setConfirmReset(true)}
@@ -2858,6 +2878,8 @@ export default function RutinaTracker() {
           </div>
         )}
       </div>
+
+      <PortfolioFooter />
 
       {backExitNotice && (
         <div
