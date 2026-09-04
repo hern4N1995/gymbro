@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, User, Dumbbell, Ruler, Calendar, SlidersHorizontal, Key, Check } from "lucide-react";
+import { X, User, Dumbbell, Ruler, Calendar, SlidersHorizontal, Key, Check, Eye, EyeOff } from "lucide-react";
 import supabase from "../../supabaseClient";
 import InfoModal from "./InfoModal";
 import { PrimaryButton, SecondaryButton } from "./Button";
@@ -54,6 +54,8 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
   const [pwOpen, setPwOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordChecks, setPasswordChecks] = useState({ length: false, letters: false, numbers: false });
   const [passwordValid, setPasswordValid] = useState(false);
   const containerRef = useRef(null);
@@ -158,8 +160,18 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
           <SecondaryButton onClick={() => setPwOpen(!pwOpen)} className="w-full text-left">Cambiar contraseña</SecondaryButton>
           {pwOpen && (
             <div className="mt-3 grid grid-cols-1 gap-2">
-              <input type="password" placeholder="Nueva contraseña" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
-              <input type="password" placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white" />
+              <div className="relative">
+                <input type={showNewPassword ? 'text' : 'password'} placeholder="Nueva contraseña" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 pr-11 text-sm text-white" />
+                <button type="button" aria-label={showNewPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowNewPassword((prev) => !prev)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white">
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <div className="relative">
+                <input type={showConfirmPassword ? 'text' : 'password'} placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-xl px-3 py-2 pr-11 text-sm text-white" />
+                <button type="button" aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowConfirmPassword((prev) => !prev)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white">
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
               <div className="flex flex-wrap gap-2 text-[11px] mt-1">
                 <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>

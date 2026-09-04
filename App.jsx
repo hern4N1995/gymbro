@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User, GripVertical } from "lucide-react";
+import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User, GripVertical, Eye, EyeOff } from "lucide-react";
 import InfoModal from "./src/components/InfoModal";
 import { PrimaryButton, SecondaryButton } from "./src/components/Button";
 import supabase from "./supabaseClient";
@@ -238,6 +238,7 @@ export default function RutinaTracker() {
   const [noticeMsg, setNoticeMsg] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [passwordChecks, setPasswordChecks] = useState({ length: false, letters: false, numbers: false });
   const [passwordValid, setPasswordValid] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -1948,7 +1949,26 @@ export default function RutinaTracker() {
               <h2 className="mb-4 text-xl font-black">Iniciar sesión / Registrarse</h2>
               <form onSubmit={handleSignIn} className="flex flex-col gap-3">
                 <input name="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
-                <input name="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} type="password" placeholder="Contraseña" autoComplete="current-password" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+                <div className="relative">
+                  <input
+                    name="password"
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                    type={showLoginPassword ? "text" : "password"}
+                    placeholder="Contraseña"
+                    autoComplete="current-password"
+                    required
+                    className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 pr-11 text-sm text-white"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    onClick={() => setShowLoginPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                  >
+                    {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
                 <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
                 <div className="flex gap-3 text-xs mt-1">
                   <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>
