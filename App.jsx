@@ -217,6 +217,29 @@ const uniqueById = (arr) => {
   return out;
 };
 
+const onboardingSteps = [
+  {
+    title: '1. Abrí las opciones',
+    text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas o cerrar sesión.',
+    accent: 'gear',
+  },
+  {
+    title: '2. Creá tu primer día',
+    text: 'Cuando estés listo, tocá “Crear primer día” para armar la rutina semanal.',
+    accent: 'create-day',
+  },
+  {
+    title: '3. Mantén presionado',
+    text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, renombrar o borrar.',
+    accent: 'long-press',
+  },
+  {
+    title: '4. Empezá a entrenar',
+    text: 'Agregá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
+    accent: 'start',
+  },
+];
+
 export default function RutinaTracker() {
   const [routine, setRoutine] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -244,6 +267,8 @@ export default function RutinaTracker() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [session, setSession] = useState(null);
   const [sessionStatus, setSessionStatus] = useState('verifying'); // 'verifying' | 'none' | 'authenticated'
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const tokenRefreshedResolversRef = React.useRef([]);
   const reloadFromSupabaseRef = React.useRef(null);
 
@@ -1441,6 +1466,32 @@ export default function RutinaTracker() {
   };
 
   useEffect(() => {
+    if (!session?.user) return;
+    const key = `gymbro_onboarding_done_${session.user.id}`;
+    const shouldShow = localStorage.getItem(key) !== '1';
+    if (shouldShow && routine.length === 0) {
+      setShowOnboarding(true);
+      setOnboardingStep(0);
+      setMenuOpen(true);
+    }
+  }, [session, routine.length]);
+
+  const dismissOnboarding = () => {
+    if (session?.user) {
+      localStorage.setItem(`gymbro_onboarding_done_${session.user.id}`, '1');
+    }
+    setShowOnboarding(false);
+    setOnboardingStep(0);
+  };
+
+  useEffect(() => {
+    if (!showOnboarding) return;
+    if (onboardingStep === 0) {
+      setMenuOpen(true);
+    }
+  }, [showOnboarding, onboardingStep]);
+
+  useEffect(() => {
     if (!day) {
       setHistory((prev) => ({ ...prev }));
       return;
@@ -2022,7 +2073,7 @@ export default function RutinaTracker() {
             <div className="relative flex items-center justify-center">
               <div
                 ref={radialMenuRef}
-                className="pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                className={`pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showOnboarding && onboardingStep === 0 ? 'ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214] rounded-full' : ''}`}
                 style={{
                   opacity: menuOpen ? 1 : 0,
                   width: '120px',
@@ -2101,11 +2152,12 @@ export default function RutinaTracker() {
               </div>
 
               <button
+                id="tour-gear"
                 ref={radialMenuTriggerRef}
                 type="button"
                 aria-label="Opciones"
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white"
+                className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white ${showOnboarding && onboardingStep === 0 ? 'ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214]' : ''}`}
               >
                 <Settings size={16} />
               </button>
@@ -2118,10 +2170,11 @@ export default function RutinaTracker() {
               <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
               <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
               <button
+                id="tour-create-day"
                 type="button"
                 onClick={openCreateDaySheet}
                 disabled={!availableWeekdays.length}
-                className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed ${showOnboarding && onboardingStep === 1 ? 'ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#1B1D21]' : ''}`}
               >
                 Crear primer día
               </button>
@@ -2132,6 +2185,60 @@ export default function RutinaTracker() {
             <PortfolioFooter />
           </div>
         </div>
+
+        {showOnboarding && (
+          <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]">
+            <div className="absolute inset-x-0 bottom-6 mx-auto w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-300">Guía rápida</p>
+                  <h3 className="mt-1 text-lg font-bold text-white">{onboardingSteps[onboardingStep].title}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissOnboarding}
+                  className="rounded-full border border-neutral-700 bg-neutral-800 p-2 text-neutral-300"
+                  aria-label="Cerrar guía"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-neutral-300">{onboardingSteps[onboardingStep].text}</p>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {onboardingSteps.map((_, index) => (
+                    <span
+                      key={index}
+                      className={`h-2 w-2 rounded-full ${index === onboardingStep ? 'bg-amber-400' : 'bg-neutral-700'}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={dismissOnboarding}
+                    className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-300"
+                  >
+                    Saltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onboardingStep < onboardingSteps.length - 1) {
+                        setOnboardingStep((prev) => prev + 1);
+                        return;
+                      }
+                      dismissOnboarding();
+                    }}
+                    className="rounded-full bg-amber-500 px-4 py-2 text-xs font-bold text-black"
+                  >
+                    {onboardingStep === onboardingSteps.length - 1 ? 'Empezar' : 'Siguiente'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showCreateDaySheet && (
           <div

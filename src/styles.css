@@ -113,6 +113,19 @@ textarea {
 /* subtle focus */
 input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px rgba(245,158,11,0.06); outline: none; }
 
+/* hide browser-native password reveal icons; keep the app's custom eye toggle */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input[type="password"]::-webkit-password-reveal-button,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
 /* small icon button */
 .icon-btn { display:inline-flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; }
 
