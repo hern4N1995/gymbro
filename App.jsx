@@ -221,6 +221,11 @@ export default function RutinaTracker() {
   const [dayTitles, setDayTitles] = useState({});
   const [drafts, setDrafts] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
+  const [noticeMsg, setNoticeMsg] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [passwordChecks, setPasswordChecks] = useState({ length: false, letters: false, numbers: false });
+  const [passwordValid, setPasswordValid] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [session, setSession] = useState(null);
   const [sessionStatus, setSessionStatus] = useState('verifying'); // 'verifying' | 'none' | 'authenticated'
@@ -305,6 +310,21 @@ export default function RutinaTracker() {
     const id = setTimeout(() => setErrorMsg(''), 4000);
     return () => clearTimeout(id);
   }, [errorMsg]);
+
+  useEffect(() => {
+    if (!noticeMsg) return;
+    const id = setTimeout(() => setNoticeMsg(''), 6000);
+    return () => clearTimeout(id);
+  }, [noticeMsg]);
+
+  useEffect(() => {
+    const p = String(signupPassword || '');
+    const length = p.length >= 8;
+    const letters = /[A-Za-z]/.test(p);
+    const numbers = /\d/.test(p);
+    setPasswordChecks({ length, letters, numbers });
+    setPasswordValid(length && letters && numbers);
+  }, [signupPassword]);
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
@@ -1772,8 +1792,11 @@ export default function RutinaTracker() {
       setErrorMsg('Completa email y contraseña.');
       return;
     }
-    if (String(password).length < 6) {
-      setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
+    // password policy: min 8 chars, must include letters and numbers
+    const pwd = String(password);
+    const pwdOk = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(pwd);
+    if (!pwdOk) {
+      setErrorMsg('La contraseña debe tener mínimo 8 caracteres e incluir letras y números.');
       return;
     }
     try {
@@ -1783,7 +1806,10 @@ export default function RutinaTracker() {
         setErrorMsg(res.error.message || 'Error al registrarse');
         return;
       }
-      setErrorMsg("Revisa tu correo para confirmar la cuenta (si aplica).");
+      setNoticeMsg("Revisa tu correo para confirmar la cuenta antes de iniciar sesión.");
+      setErrorMsg("");
+      // clear password field for security
+      try { formEl.querySelector('input[name=password]').value = ''; } catch {}
     } catch (err) {
       setErrorMsg(err.message || "No se pudo crear la cuenta");
     }
@@ -1791,9 +1817,16 @@ export default function RutinaTracker() {
 
   const signInWithGoogle = async () => {
     try {
-      await supabase.auth.signInWithOAuth({ provider: "google" });
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!url || !key) {
+        setErrorMsg('Google sign-in no está configurado: faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
+        return;
+      }
+      await supabase.auth.signInWithOAuth({ provider: 'google' }, { redirectTo: window.location.origin });
     } catch (err) {
-      setErrorMsg(err.message || "Error OAuth");
+      console.error('signInWithGoogle error', err);
+      setErrorMsg(err?.message || 'Error OAuth');
     }
   };
 
@@ -1810,21 +1843,34 @@ export default function RutinaTracker() {
   if (!session || !session.user) {
     return (
       <div className="min-h-screen w-full bg-[#111214] text-neutral-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#0F1112] border border-neutral-800 rounded-2xl p-6">
-          <h2 className="text-xl font-black mb-4">Iniciar sesión / Registrarse</h2>
-          <form onSubmit={handleSignIn} className="flex flex-col gap-3">
-            <input name="email" type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
-            <input name="password" type="password" placeholder="Contraseña" autoComplete="current-password" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
-            <div className="flex gap-2">
-              <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesión</button>
-              <button type="button" onClick={handleSignUp} className="flex-1 bg-neutral-800 text-neutral-300 font-bold py-2 rounded-lg">Registrarme</button>
+        <div className="flex flex-col items-center w-full -mt-14">
+          <img src="/android-chrome-512x512.png" alt="GymBro logo" className="w-64 h-64 sm:w-80 sm:h-80 -mb-3 object-contain" />
+          <div className="w-full max-w-md bg-[#0F1112] border border-neutral-800 rounded-2xl p-6">
+            <h2 className="text-xl font-black mb-4">Iniciar sesión / Registrarse</h2>
+            <form onSubmit={handleSignIn} className="flex flex-col gap-3">
+              <input name="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+              <input name="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} type="password" placeholder="Contraseña" autoComplete="current-password" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+              <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
+              <div className="flex gap-3 text-xs mt-1">
+                <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>
+                <div className={`flex items-center gap-1 ${passwordChecks.letters ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Letras</div>
+                <div className={`flex items-center gap-1 ${passwordChecks.numbers ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Números</div>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesión</button>
+                <button type="button" onClick={handleSignUp} disabled={!passwordValid || !signupEmail} className={`flex-1 font-bold py-2 rounded-lg ${(!passwordValid || !signupEmail) ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed' : 'bg-neutral-800 text-neutral-300'}`}>Registrarme</button>
+              </div>
+            </form>
+              <div className="mt-4">
+              <button onClick={signInWithGoogle} className="w-full bg-white text-black font-bold py-2 rounded-lg flex items-center justify-center gap-2">
+                  <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.9 0 6.6 1.7 8.1 3.1l6-6C34.9 3.6 29.9 1 24 1 14.9 1 7.3 6.8 3.7 14.8l7.1 5.5C12.8 15 17.9 9.5 24 9.5z"/><path fill="#34A853" d="M46.5 24.5c0-1.6-.1-2.9-.4-4.1H24v8.1h12.7c-.5 2.6-2 4.8-4.2 6.3l6.4 5c3.7-3.4 5.6-8.5 5.6-15.3z"/><path fill="#4A90E2" d="M10.8 28c-.7-2-1-4.1-1-6.2s.4-4.2 1-6.2L3.7 10.1C1.3 14 0 18.8 0 24s1.3 10 3.7 13.9l7.1-5.5z"/><path fill="#FBBC05" d="M24 46c6.6 0 12.2-2.2 16.4-6l-6.4-5c-2 1.4-4.6 2.2-8 2.2-6.1 0-11.2-5.5-12.5-12.7L3.7 34.9C7.3 42.9 14.9 48 24 48z"/></svg>
+                  Iniciar con Google
+              </button>
             </div>
-          </form>
-          <div className="mt-4">
-            <button onClick={signInWithGoogle} className="w-full bg-white text-black font-bold py-2 rounded-lg">Iniciar con Google</button>
+            {/* gear removed from login view; appears after session starts */}
+            {noticeMsg && <div className="mt-3 text-sm text-amber-400">{noticeMsg}</div>}
+            {errorMsg && <div className="mt-3 text-sm text-red-400">{errorMsg}</div>}
           </div>
-          {/* gear removed from login view; appears after session starts */}
-          {errorMsg && <div className="mt-3 text-sm text-red-400">{errorMsg}</div>}
         </div>
       </div>
     );
