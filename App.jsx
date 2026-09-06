@@ -389,6 +389,7 @@ export default function RutinaTracker() {
     }
 
     if (isDemoHighlightStep) {
+      let scrollTimer = null;
       if (onboardingStep === 2) {
         setSelectionForDemoDay();
         setDayActionMenu(DEMO_DAY_ID);
@@ -396,6 +397,12 @@ export default function RutinaTracker() {
       } else if (onboardingStep === 3) {
         setDayActionMenu(null);
         setExpanded('demo-press');
+        // small delay to wait for the expanded demo card to render, then scroll it into view
+        scrollTimer = setTimeout(() => {
+          try {
+            document.getElementById('demo-exercise-row')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } catch (e) {}
+        }, 120);
       } else {
         setDayActionMenu(null);
         setExpanded(null);
@@ -412,7 +419,7 @@ export default function RutinaTracker() {
           ],
         },
       ]);
-      return;
+      return () => { if (scrollTimer) clearTimeout(scrollTimer); };
     }
 
     setExpanded(null);
@@ -2765,6 +2772,7 @@ export default function RutinaTracker() {
         style={{
           touchAction: 'pan-y',
           overscrollBehavior: 'contain',
+          paddingBottom: (showOnboarding && onboardingStep === 3) ? '240px' : undefined,
         }}
       >
         {displayRoutine.length === 0 ? null : safeDay.exercises.length === 0 ? (
