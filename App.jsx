@@ -531,6 +531,7 @@ export default function RutinaTracker() {
   
   const [backExitNotice, setBackExitNotice] = useState('');
   const [backExitNoticeVisible, setBackExitNoticeVisible] = useState(false);
+  const appReadyRef = React.useRef(false);
   const [profileName, setProfileName] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuReady, setMenuReady] = useState(false);
@@ -697,6 +698,15 @@ export default function RutinaTracker() {
       console.error('[pushHistoryState] failed', e);
     }
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      appReadyRef.current = true;
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // Keep a ref to the current backExitNotice so the popstate listener
   // doesn't need backExitNotice in its dependency array (avoids re-registering).
   const backExitNoticeRef = React.useRef(backExitNotice);
@@ -706,6 +716,8 @@ export default function RutinaTracker() {
   useEffect(() => {
     const handleBackButton = (event) => {
       event.preventDefault();
+      if (!appReadyRef.current) return;
+
       const handled = closeTopLevelOverlay();
       if (handled) {
         pushHistoryState();
@@ -766,6 +778,24 @@ export default function RutinaTracker() {
     setBackExitNoticeVisible(false);
     setTimeout(() => setBackExitNotice(''), 350);
   }, []);
+
+  useEffect(() => {
+    if (!backExitNotice || !backExitNoticeVisible) return;
+
+    const handleOutsidePress = (event) => {
+      const toast = document.getElementById('app-exit-toast');
+      if (toast && toast.contains(event.target)) return;
+      dismissBackExitNotice(true);
+    };
+
+    document.addEventListener('mousedown', handleOutsidePress);
+    document.addEventListener('touchstart', handleOutsidePress, { passive: true });
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsidePress);
+      document.removeEventListener('touchstart', handleOutsidePress);
+    };
+  }, [backExitNotice, backExitNoticeVisible, dismissBackExitNotice]);
 
   useEffect(() => {
     if (!exerciseMenuOpen) return;
@@ -2734,11 +2764,7 @@ export default function RutinaTracker() {
           overscrollBehavior: 'contain',
         }}
       >
-        {displayRoutine.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
-            <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
-          </div>
-        ) : safeDay.exercises.length === 0 ? (
+        {displayRoutine.length === 0 ? null : safeDay.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
