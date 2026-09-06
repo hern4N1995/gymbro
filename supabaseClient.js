@@ -19,4 +19,12 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
+if (import.meta.env.DEV) {
+  // Expose client for quick debugging in the browser console during development
+  try {
+    // @ts-ignore
+    window.supabase = supabase;
+  } catch (e) {}
+}
+
 export default supabase;

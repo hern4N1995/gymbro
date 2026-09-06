@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+﻿import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User, GripVertical, Eye, EyeOff } from "lucide-react";
 import InfoModal from "./src/components/InfoModal";
 import { PrimaryButton, SecondaryButton } from "./src/components/Button";
@@ -7,7 +7,6 @@ import RestTimer from "./src/components/RestTimer";
 import ProfileModal from "./src/components/ProfileModal";
 import Analytics from "./src/components/Analytics";
 import ExerciseList from "./src/components/ExerciseList";
-import ChatWidget from "./src/components/ChatWidget";
 import useClickOutside from "./src/hooks/useClickOutside";
 import { restDefaultByExercise, estimate1RM, volumeSeries } from "./src/utils/fitnessHelpers";
 import EXERCISE_MUSCLE_MAP from "./src/config/muscleMapping";
@@ -24,14 +23,14 @@ function SortableItem({ id, children }) {
   return children({ attributes, listeners, setNodeRef, transformStyle, isDragging });
 }
 
-// Configuración visual por día
+// Configuraci├│n visual por d├¡a
 const PLATE = {
   lun: { hex: "#D7263D", label: "25", sub: "Empuje A" },
-  mar: { hex: "#1E6FD9", label: "20", sub: "Tracción A" },
+  mar: { hex: "#1E6FD9", label: "20", sub: "Tracci├│n A" },
   mie: { hex: "#F2C230", label: "15", sub: "Pierna" },
   jue: { hex: "#2E9E5B", label: "10", sub: "Empuje B" },
-  vie: { hex: "#C9CDD3", label: "5", sub: "Tracción B" },
-  sab: { hex: "#8B5CF6", label: "S", sub: "Sábado" },
+  vie: { hex: "#C9CDD3", label: "5", sub: "Tracci├│n B" },
+  sab: { hex: "#8B5CF6", label: "S", sub: "S├íbado" },
   dom: { hex: "#FB7185", label: "D", sub: "Domingo" },
 };
 
@@ -43,33 +42,33 @@ const DEFAULT_ROUTINE = [
     exercises: [
       { id: "lun-inclinado-mancuerna", name: "Press banco inclinado c/mancuerna", sets: 4, reps: "8-10", rir: "1-2", rest: "2-3 min" },
       { id: "lun-plano-mancuerna", name: "Press banco plano c/mancuerna", sets: 3, reps: "10-12", rir: "1-2", rest: "90-120s" },
-      { id: "lun-lateral-mancuerna", name: "Elevación lateral c/mancuerna", sets: 3, reps: "12-15", rir: "1", rest: "60-90s" },
+      { id: "lun-lateral-mancuerna", name: "Elevaci├│n lateral c/mancuerna", sets: 3, reps: "12-15", rir: "1", rest: "60-90s" },
       { id: "lun-press-hombro", name: "Press de hombro c/mancuerna (sentado)", sets: 3, reps: "8-10", rir: "1-2", rest: "90-120s" },
-      { id: "lun-ext-triceps-nuca", name: "Extensión tríceps tras nuca c/mancuerna", sets: 3, reps: "10-12", rir: "1", rest: "60-90s" },
-      { id: "lun-ext-triceps-barra", name: "Extensión tríceps polea (barra)", sets: 2, reps: "12-15", rir: "0-1", rest: "60s" },
+      { id: "lun-ext-triceps-nuca", name: "Extensi├│n tr├¡ceps tras nuca c/mancuerna", sets: 3, reps: "10-12", rir: "1", rest: "60-90s" },
+      { id: "lun-ext-triceps-barra", name: "Extensi├│n tr├¡ceps polea (barra)", sets: 2, reps: "12-15", rir: "0-1", rest: "60s" },
     ],
   },
   {
     id: "mar",
     label: "Martes",
     exercises: [
-      { id: "mar-jalon-prono", name: "Jalón polea prono", sets: 4, reps: "8-10", rir: "1-2", rest: "2-3 min" },
+      { id: "mar-jalon-prono", name: "Jal├│n polea prono", sets: 4, reps: "8-10", rir: "1-2", rest: "2-3 min" },
       { id: "mar-remo-cerrado", name: "Remo sentado (agarre cerrado)", sets: 3, reps: "10-12", rir: "1-2", rest: "90-120s" },
-      { id: "mar-jalon-v", name: "Jalón polea agarre V", sets: 3, reps: "10-12", rir: "1", rest: "90s" },
-      { id: "mar-jalon-cara", name: "Jalón a la cara (soga)", sets: 3, reps: "15", rir: "1", rest: "60s" },
+      { id: "mar-jalon-v", name: "Jal├│n polea agarre V", sets: 3, reps: "10-12", rir: "1", rest: "90s" },
+      { id: "mar-jalon-cara", name: "Jal├│n a la cara (soga)", sets: 3, reps: "15", rir: "1", rest: "60s" },
       { id: "mar-curl-scott", name: "Curl banco Scott (barra EZ)", sets: 3, reps: "10-12", rir: "1", rest: "60-90s" },
       { id: "mar-curl-martillo", name: "Curl martillo c/mancuerna", sets: 2, reps: "12-15", rir: "0-1", rest: "60s" },
     ],
   },
   {
     id: "mie",
-    label: "Miércoles",
+    label: "Mi├®rcoles",
     exercises: [
       { id: "mie-prensa", name: "Prensa", sets: 3, reps: "10-12", rir: "1-2", rest: "2 min" },
       { id: "mie-curl-femoral", name: "Curl femoral", sets: 3, reps: "10-12", rir: "1", rest: "90s" },
-      { id: "mie-ext-rodilla", name: "Extensión de rodilla", sets: 2, reps: "12-15", rir: "1", rest: "60-90s" },
+      { id: "mie-ext-rodilla", name: "Extensi├│n de rodilla", sets: 2, reps: "12-15", rir: "1", rest: "60-90s" },
       { id: "mie-pantorrilla", name: "Pantorrilla", sets: 2, reps: "15-20", rir: "1", rest: "60s" },
-      { id: "mie-plancha", name: "Plancha / elevación de piernas", sets: 3, reps: "30-45s", rir: "—", rest: "45s" },
+      { id: "mie-plancha", name: "Plancha / elevaci├│n de piernas", sets: 3, reps: "30-45s", rir: "ÔÇö", rest: "45s" },
     ],
   },
   {
@@ -78,9 +77,9 @@ const DEFAULT_ROUTINE = [
     exercises: [
       { id: "jue-declinado-mancuerna", name: "Press banco declinado c/mancuerna", sets: 4, reps: "8-10", rir: "1-2", rest: "2-3 min" },
       { id: "jue-inclinado-liviano", name: "Press banco inclinado (mayor rep)", sets: 3, reps: "12-15", rir: "1-2", rest: "90-120s" },
-      { id: "jue-lateral-polea", name: "Elevación lateral (polea)", sets: 3, reps: "12-15", rir: "1", rest: "60-90s" },
+      { id: "jue-lateral-polea", name: "Elevaci├│n lateral (polea)", sets: 3, reps: "12-15", rir: "1", rest: "60-90s" },
       { id: "jue-press-militar-ez", name: "Press militar c/barra EZ", sets: 3, reps: "8-10", rir: "1-2", rest: "90-120s" },
-      { id: "jue-ext-triceps-cuerda", name: "Extensión tríceps polea (cuerda)", sets: 3, reps: "12-15", rir: "1", rest: "60-90s" },
+      { id: "jue-ext-triceps-cuerda", name: "Extensi├│n tr├¡ceps polea (cuerda)", sets: 3, reps: "12-15", rir: "1", rest: "60-90s" },
     ],
   },
   {
@@ -88,15 +87,15 @@ const DEFAULT_ROUTINE = [
     label: "Viernes",
     exercises: [
       { id: "vie-remo-ancho", name: "Remo sentado agarre ancho", sets: 4, reps: "8-10", rir: "1-2", rest: "2-3 min" },
-      { id: "vie-jalon-barra", name: "Jalón polea agarre barra", sets: 3, reps: "10-12", rir: "1-2", rest: "90-120s" },
-      { id: "vie-jalon-v-rep", name: "Jalón polea agarre V (mayor rep)", sets: 3, reps: "12-15", rir: "1", rest: "90s" },
+      { id: "vie-jalon-barra", name: "Jal├│n polea agarre barra", sets: 3, reps: "10-12", rir: "1-2", rest: "90-120s" },
+      { id: "vie-jalon-v-rep", name: "Jal├│n polea agarre V (mayor rep)", sets: 3, reps: "12-15", rir: "1", rest: "90s" },
       { id: "vie-curl-polea-barra", name: "Curl polea con barra", sets: 3, reps: "10-12", rir: "1", rest: "60-90s" },
       { id: "vie-curl-inclinado", name: "Curl inclinado c/mancuerna", sets: 2, reps: "12-15", rir: "1", rest: "60-90s" },
     ],
   },
   {
     id: "sab",
-    label: "Sábado",
+    label: "S├íbado",
     exercises: [],
   },
   {
@@ -156,7 +155,7 @@ const normalizeRestValue = (value) => {
     return `${Math.min(a, b)}-${Math.max(a, b)}s`;
   }
 
-  const matchSingleMinutesWithSec = raw.match(/^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*(min|mins|minute|minutos?)\s*(?:\s*\(\s*?\d+\s*s\s*\)?)?$/);
+  const matchSingleMinutesWithSec = raw.match(/^(\d+(?:\.\d+)?)\s*[-ÔÇô]\s*(\d+(?:\.\d+)?)\s*(min|mins|minute|minutos?)\s*(?:\s*\(\s*?\d+\s*s\s*\)?)?$/);
   if (matchSingleMinutesWithSec) {
     const a = Number(matchSingleMinutesWithSec[1]) * 60;
     const b = Number(matchSingleMinutesWithSec[2]) * 60;
@@ -220,23 +219,23 @@ const uniqueById = (arr) => {
 
 const onboardingSteps = [
   {
-    title: '1. Abrí las opciones',
-    text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas o cerrar sesión.',
+    title: '1. Abr├¡ las opciones',
+    text: 'Us├í el engranaje para entrar a tu perfil, ver estad├¡sticas o cerrar sesi├│n.',
     accent: 'gear',
   },
   {
-    title: '2. Creá tu primer día',
-    text: 'Cuando estés listo, tocá “Crear primer día” para armar la rutina semanal.',
+    title: '2. Cre├í tu primer d├¡a',
+    text: 'Cuando est├®s listo, toc├í ÔÇ£Crear primer d├¡aÔÇØ para armar la rutina semanal.',
     accent: 'create-day',
   },
   {
-    title: '3. Mantén presionado',
-    text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, renombrar o borrar.',
+    title: '3. Mant├®n presionado',
+    text: 'Presion├í y manten├® un d├¡a o un ejercicio para ver acciones como editar, renombrar o borrar.',
     accent: 'long-press',
   },
   {
-    title: '4. Empezá a entrenar',
-    text: 'Agregá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
+    title: '4. Empez├í a entrenar',
+    text: 'Agreg├í ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
     accent: 'start',
   },
 ];
@@ -429,11 +428,11 @@ export default function RutinaTracker() {
 
   const handleDeleteAccount = async () => {
     if (!session?.user) {
-      setErrorMsg('No se pudo confirmar la sesión para eliminar la cuenta.');
+      setErrorMsg('No se pudo confirmar la sesi├│n para eliminar la cuenta.');
       return;
     }
 
-    const confirmed = window.confirm('¿Seguro que querés eliminar tu cuenta? Esta acción borrará tu perfil y tus datos guardados.');
+    const confirmed = window.confirm('┬┐Seguro que quer├®s eliminar tu cuenta? Esta acci├│n borrar├í tu perfil y tus datos guardados.');
     if (!confirmed) return;
 
     try {
@@ -452,10 +451,10 @@ export default function RutinaTracker() {
         return;
       }
 
-      throw new Error(data?.message || 'No se pudo completar la eliminación de la cuenta.');
+      throw new Error(data?.message || 'No se pudo completar la eliminaci├│n de la cuenta.');
     } catch (err) {
       console.error('delete account error', err);
-      setErrorMsg('Todavía no está configurada la eliminación de cuenta en Supabase. Debe crearse la función delete-user en el backend.');
+      setErrorMsg('Todav├¡a no est├í configurada la eliminaci├│n de cuenta en Supabase. Debe crearse la funci├│n delete-user en el backend.');
     }
   };
 
@@ -475,7 +474,7 @@ export default function RutinaTracker() {
 
     if (action === 'templates') {
       if (!routine.length) {
-        setErrorMsg('Creá tu primer día y agregá ejercicios antes de guardar o cargar una rutina.');
+        setErrorMsg('Cre├í tu primer d├¡a y agreg├í ejercicios antes de guardar o cargar una rutina.');
         setShowCreateDaySheet(true);
         return;
       }
@@ -565,7 +564,7 @@ export default function RutinaTracker() {
       }
 
       if (!backExitNoticeRef.current) {
-        setBackExitNotice('Presioná atrás otra vez para salir');
+        setBackExitNotice('Presion├í atr├ís otra vez para salir');
         setBackExitNoticeVisible(true);
         pushHistoryState();
         return;
@@ -835,7 +834,7 @@ export default function RutinaTracker() {
     return () => { mounted = false; };
   }, [session]);
 
-  // Cargar estructura: si hay sesión, cargar desde Supabase; si no, desde localStorage
+  // Cargar estructura: si hay sesi├│n, cargar desde Supabase; si no, desde localStorage
   useEffect(() => {
     const loadFromLocal = () => {
       try {
@@ -854,7 +853,7 @@ export default function RutinaTracker() {
         const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", userId);
         if (error) throw error;
 
-        // Always fetch day titles too — even if `rutinas_usuario` is empty we may have
+        // Always fetch day titles too ÔÇö even if `rutinas_usuario` is empty we may have
         // entries in `dias_usuario` that should be shown as empty days.
         const { data: diasData } = await supabase.from('dias_usuario').select('*').eq('user_id', userId);
         const titleMap = (diasData || []).reduce((m, r) => { m[r.day_id] = r.title; return m; }, {});
@@ -874,7 +873,7 @@ export default function RutinaTracker() {
           setRoutine([]);
           setSelectedDay(null);
         } else {
-          const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+          const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Mi├®rcoles', jue: 'Jueves', vie: 'Viernes', sab: 'S├íbado', dom: 'Domingo' };
           const grouped = dayIds.map(id => ({ id, label: labelMap[id] || id, exercises: uniqueById(normalized.filter(r => r.day_id === id)), sub: titleMap[id] || '' }));
           // Ensure exercises in each day are ordered by sort_order (fallback to id)
           const groupedWithOrder = grouped.map(g => ({
@@ -927,7 +926,7 @@ export default function RutinaTracker() {
 
   const saveRoutineStructure = async (newRoutine) => {
     setRoutine(newRoutine);
-    // Cuando hay sesión, persistir cambios en Supabase (se realiza por operación puntual en add/edit/delete). Mantener también copia local por compatibilidad.
+    // Cuando hay sesi├│n, persistir cambios en Supabase (se realiza por operaci├│n puntual en add/edit/delete). Mantener tambi├®n copia local por compatibilidad.
     try {
       localStorage.setItem("wlog_routine_structure", JSON.stringify(newRoutine));
     } catch {}
@@ -976,7 +975,7 @@ export default function RutinaTracker() {
   };
 
   const WEEK_ORDER = ['lun','mar','mie','jue','vie','sab','dom'];
-  const DAY_LABEL_MAP = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+  const DAY_LABEL_MAP = { lun: 'Lunes', mar: 'Martes', mie: 'Mi├®rcoles', jue: 'Jueves', vie: 'Viernes', sab: 'S├íbado', dom: 'Domingo' };
   const WEEKDAY_OPTIONS = WEEK_ORDER.map((id) => ({ id, label: DAY_LABEL_MAP[id] || id }));
   const availableWeekdays = WEEK_ORDER.filter((id) => !routine.some((d) => d.id === id));
   const existingRoutineDays = routine.map((d) => ({ id: d.id, label: d.label }));
@@ -1081,14 +1080,14 @@ export default function RutinaTracker() {
     if (!session || !session.user) return false;
     const slot = Number(slotNumber);
     if (!Number.isInteger(slot) || slot < 1 || slot > MAX_TEMPLATE_SLOTS) {
-      setErrorMsg(`Solo podés guardar ${MAX_TEMPLATE_SLOTS} rutinas.`);
+      setErrorMsg(`Solo pod├®s guardar ${MAX_TEMPLATE_SLOTS} rutinas.`);
       return false;
     }
 
     const name = (nameOverride || '').trim() || 'Rutina';
     const existingSlotNumbers = new Set((templates || []).map((template) => Number(template.slot_number)).filter(Number.isFinite));
     if (existingSlotNumbers.size >= MAX_TEMPLATE_SLOTS && !existingSlotNumbers.has(slot)) {
-      setErrorMsg(`Solo podés guardar ${MAX_TEMPLATE_SLOTS} rutinas.`);
+      setErrorMsg(`Solo pod├®s guardar ${MAX_TEMPLATE_SLOTS} rutinas.`);
       return false;
     }
 
@@ -1105,7 +1104,7 @@ export default function RutinaTracker() {
     if (error) {
       const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
       if (missingTable) {
-        setErrorMsg('La tabla de plantillas no existe todavía. Ejecutá el SQL de creación antes de usar “Mis rutinas”.');
+        setErrorMsg('La tabla de plantillas no existe todav├¡a. Ejecut├í el SQL de creaci├│n antes de usar ÔÇ£Mis rutinasÔÇØ.');
       } else {
         setErrorMsg('No se pudo guardar la plantilla.');
       }
@@ -1131,7 +1130,7 @@ export default function RutinaTracker() {
     if (error) {
       const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
       if (missingTable) {
-        setErrorMsg('La tabla de plantillas no existe todavía. Ejecutá el SQL de creación antes de usar “Mis rutinas”.');
+        setErrorMsg('La tabla de plantillas no existe todav├¡a. Ejecut├í el SQL de creaci├│n antes de usar ÔÇ£Mis rutinasÔÇØ.');
       } else {
         setErrorMsg('No se pudo renombrar la plantilla.');
       }
@@ -1154,7 +1153,7 @@ export default function RutinaTracker() {
     if (error) {
       const missingTable = error?.code === 'PGRST205' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('routine_templates'));
       if (missingTable) {
-        setErrorMsg('La tabla de plantillas no existe todavía. Ejecutá el SQL de creación antes de usar “Mis rutinas”.');
+        setErrorMsg('La tabla de plantillas no existe todav├¡a. Ejecut├í el SQL de creaci├│n antes de usar ÔÇ£Mis rutinasÔÇØ.');
       } else {
         setErrorMsg('No se pudo borrar la plantilla.');
       }
@@ -1177,9 +1176,9 @@ export default function RutinaTracker() {
       if (error) {
         const missingFn = typeof error?.message === 'string' && error.message.toLowerCase().includes('replace_active_routine_from_template');
         if (missingFn) {
-          setErrorMsg('La función para cargar plantillas no existe todavía. Ejecutá el SQL del RPC de Supabase antes de usar “Mis rutinas”.');
+          setErrorMsg('La funci├│n para cargar plantillas no existe todav├¡a. Ejecut├í el SQL del RPC de Supabase antes de usar ÔÇ£Mis rutinasÔÇØ.');
         } else {
-          setErrorMsg('La plantilla no se cargó. Tu rutina activa NO se modificó porque la operación falló y la transacción se revirtió.');
+          setErrorMsg('La plantilla no se carg├│. Tu rutina activa NO se modific├│ porque la operaci├│n fall├│ y la transacci├│n se revirti├│.');
         }
         return;
       }
@@ -1193,7 +1192,7 @@ export default function RutinaTracker() {
       setPendingTemplateToLoadAfterSave(null);
       setErrorMsg('Plantilla cargada correctamente.');
     } catch (e) {
-      setErrorMsg('La plantilla no se cargó. Tu rutina activa NO se modificó porque la operación falló y la transacción se revirtió.');
+      setErrorMsg('La plantilla no se carg├│. Tu rutina activa NO se modific├│ porque la operaci├│n fall├│ y la transacci├│n se revirti├│.');
     }
   };
 
@@ -1406,7 +1405,7 @@ export default function RutinaTracker() {
     const title = String(fd.get('new_day_title') || createDayTitle || '').trim();
     if (!dayId) return;
     if (routine.find(d=>d.id===dayId)) {
-      setErrorMsg('Ese día ya existe en la rutina.');
+      setErrorMsg('Ese d├¡a ya existe en la rutina.');
       return;
     }
     const nextRoutine = sortRoutine([...routine, { id: String(dayId), label: DAY_LABEL_MAP[String(dayId)] || String(dayId), sub: title, exercises: [] }]);
@@ -1424,8 +1423,8 @@ export default function RutinaTracker() {
         setCreateDayId('');
         setCreateDayTitle('');
       } catch (e) {
-        console.error('No se pudo persistir el día en Supabase', e);
-        setErrorMsg('No se pudo guardar el día en la nube. Reintentá más tarde.');
+        console.error('No se pudo persistir el d├¡a en Supabase', e);
+        setErrorMsg('No se pudo guardar el d├¡a en la nube. Reintent├í m├ís tarde.');
         // Do NOT touch local state here: keep the sheet open so the user can retry.
       }
     } else {
@@ -1449,11 +1448,11 @@ export default function RutinaTracker() {
         try {
           await supabase.from('dias_usuario').delete().eq('user_id', session.user.id).eq('day_id', dayId);
         } catch (e) {
-          console.warn('No se pudo eliminar título de día en BD', e);
+          console.warn('No se pudo eliminar t├¡tulo de d├¡a en BD', e);
         }
       } catch (e) {
-        console.error('Error eliminando día en Supabase', e);
-        setErrorMsg('No se pudo eliminar el día en la nube.');
+        console.error('Error eliminando d├¡a en Supabase', e);
+        setErrorMsg('No se pudo eliminar el d├¡a en la nube.');
         return;
       }
       // Also remove the day from local routine structure and persist
@@ -1504,7 +1503,7 @@ export default function RutinaTracker() {
     setHistory((prev) => ({ ...prev, ...newHistory }));
   }, [selectedDay, day, loadExerciseHistory]);
 
-  // Al abrir un ejercicio (expanded), comprobar últimos 2 registros para detectar descenso
+  // Al abrir un ejercicio (expanded), comprobar ├║ltimos 2 registros para detectar descenso
   useEffect(() => {
     const check = async () => {
       if (!expanded) return setPerformanceAlert(null);
@@ -1515,7 +1514,7 @@ export default function RutinaTracker() {
             const last = data[0];
             const prev = data[1];
             if ((last.weight * last.reps) < (prev.weight * prev.reps)) {
-              setPerformanceAlert('⚠️ Rendimiento en descenso las últimas 2 sesiones. Revisa tu descanso (sueño), tu ingesta de calorías/proteínas o si estás comiendo por debajo de tu metabolismo basal (BMR).');
+              setPerformanceAlert('ÔÜá´©Å Rendimiento en descenso las ├║ltimas 2 sesiones. Revisa tu descanso (sue├▒o), tu ingesta de calor├¡as/prote├¡nas o si est├ís comiendo por debajo de tu metabolismo basal (BMR).');
               return;
             }
           }
@@ -1534,7 +1533,7 @@ export default function RutinaTracker() {
             const lastVol = (last.sets || []).reduce((s,si)=>s + ((si.weight||0)*(si.reps||0)),0);
             const prevVol = (prev.sets || []).reduce((s,si)=>s + ((si.weight||0)*(si.reps||0)),0);
             if (lastVol < prevVol) {
-              setPerformanceAlert('⚠️ Rendimiento en descenso las últimas 2 sesiones. Revisa tu descanso (sueño), tu ingesta de calorías/proteínas o si estás comiendo por debajo de tu metabolismo basal (BMR).');
+              setPerformanceAlert('ÔÜá´©Å Rendimiento en descenso las ├║ltimas 2 sesiones. Revisa tu descanso (sue├▒o), tu ingesta de calor├¡as/prote├¡nas o si est├ís comiendo por debajo de tu metabolismo basal (BMR).');
               return;
             }
           }
@@ -1585,7 +1584,7 @@ export default function RutinaTracker() {
     const rir = draft.rir;
     const notes = draft.notes;
     if (!weight || weight <= 0 || !reps || reps <= 0) {
-      setErrorMsg("Ingresá un peso y repeticiones válidos.");
+      setErrorMsg("Ingres├í un peso y repeticiones v├ílidos.");
       return;
     }
     const h = history[exerciseId] || loadExerciseHistory(exerciseId);
@@ -1630,7 +1629,7 @@ export default function RutinaTracker() {
     const formData = new FormData(e.target);
     const name = formData.get("name");
     const dayId = formData.get("day_id") || selectedDay;
-    // day titles are managed separately in 'Gestionar días'
+    // day titles are managed separately in 'Gestionar d├¡as'
     const sets = parseInt(formData.get("sets"), 10);
     const reps = formData.get("reps");
     const rir = formData.get("rir");
@@ -1696,9 +1695,9 @@ export default function RutinaTracker() {
           if (insErr) throw insErr;
         }
 
-        // Day titles are managed in 'Gestionar días'.
+        // Day titles are managed in 'Gestionar d├¡as'.
 
-        // Refrescar toda la rutina desde Supabase y mostrar sólo los day_id presentes
+        // Refrescar toda la rutina desde Supabase y mostrar s├│lo los day_id presentes
         const { data, error } = await supabase.from("rutinas_usuario").select("*").eq("user_id", session.user.id);
         if (error) throw error;
         const { data: diasData } = await supabase.from('dias_usuario').select('*').eq('user_id', session.user.id);
@@ -1707,9 +1706,9 @@ export default function RutinaTracker() {
         const explicitDayIds = Array.from(new Set((normalized || []).map(r => r.day_id))).filter(Boolean);
         const titleOnlyIds = (diasData || []).map(d => d.day_id).filter(Boolean);
         const dayIds = Array.from(new Set([...(explicitDayIds || []), ...(titleOnlyIds || [])]));
-        const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+        const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Mi├®rcoles', jue: 'Jueves', vie: 'Viernes', sab: 'S├íbado', dom: 'Domingo' };
         if (dayIds.length === 0) {
-          // No day ids found after saving — avoid showing DEFAULT_ROUTINE here
+          // No day ids found after saving ÔÇö avoid showing DEFAULT_ROUTINE here
           // as it can introduce weekdays the user didn't create (race condition
           // on reads). Keep routine empty and select the target day.
           setRoutine([]);
@@ -1743,7 +1742,7 @@ export default function RutinaTracker() {
         base = base.map((d) => (d.id === dayId ? { ...d, exercises: [...d.exercises, { id: newId, name, sets, reps, rir, rest, muscle_group: formMuscle, day_id: dayId }] } : d));
       }
 
-      // Titles are managed in 'Gestionar días'
+      // Titles are managed in 'Gestionar d├¡as'
       saveRoutineStructure(base);
       setEditingEx(null);
       setIsEditMode(false);
@@ -1751,7 +1750,7 @@ export default function RutinaTracker() {
   };
 
   const handleDeleteExercise = async (exId) => {
-    const ok = window.confirm("¿Querés eliminar este ejercicio?");
+    const ok = window.confirm("┬┐Quer├®s eliminar este ejercicio?");
     if (!ok) return;
 
     if (session && session.user) {
@@ -1766,7 +1765,7 @@ export default function RutinaTracker() {
         }
         const { error } = res;
         if (error) throw error;
-          // Refrescar desde Supabase y mostrar solo días presentes
+          // Refrescar desde Supabase y mostrar solo d├¡as presentes
           const { data } = await supabase.from('rutinas_usuario').select('*').eq('user_id', session.user.id);
           const { data: diasData } = await supabase.from('dias_usuario').select('*').eq('user_id', session.user.id);
           const titleMap = (diasData || []).reduce((m, r) => { m[r.day_id] = r.title; return m; }, {});
@@ -1774,7 +1773,7 @@ export default function RutinaTracker() {
           const explicitDayIds = Array.from(new Set((normalized || []).map(r => r.day_id))).filter(Boolean);
           const titleOnlyIds = (diasData || []).map(d => d.day_id).filter(Boolean);
           const dayIds = Array.from(new Set([...(explicitDayIds || []), ...(titleOnlyIds || [])]));
-          const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
+          const labelMap = { lun: 'Lunes', mar: 'Martes', mie: 'Mi├®rcoles', jue: 'Jueves', vie: 'Viernes', sab: 'S├íbado', dom: 'Domingo' };
           if (dayIds.length === 0) {
             // Avoid injecting DEFAULT_ROUTINE here (could introduce weekdays the
             // user didn't create). Keep routine empty and pick a sensible selectedDay.
@@ -1898,20 +1897,20 @@ export default function RutinaTracker() {
     }
   };
 
-  // --- Autenticación (login / registro) ---
+  // --- Autenticaci├│n (login / registro) ---
   const translateAuthErrorMessage = (message) => {
     const text = typeof message === 'string' ? message : '';
     const lower = text.toLowerCase();
 
-    if (!text) return 'No se pudo completar la operación.';
-    if (lower.includes('invalid login credentials') || lower.includes('email or password is invalid') || lower.includes('invalid email or password')) return 'Email o contraseña incorrectos.';
-    if (lower.includes('user already registered') || lower.includes('already registered') || lower.includes('user already exists') || lower.includes('already exists')) return 'Este email ya está registrado.';
-    if (lower.includes('password should be at least') || lower.includes('password is too weak') || lower.includes('weak password')) return 'La contraseña es demasiado débil. Usá al menos 8 caracteres con letras y números.';
-    if (lower.includes('email not confirmed') || lower.includes('confirm your email')) return 'Debés confirmar tu email antes de iniciar sesión.';
-    if (lower.includes('sign in with password is not allowed') || lower.includes('password sign in is disabled')) return 'Este usuario no puede iniciar sesión con contraseña.';
-    if (lower.includes('captcha') || lower.includes('robot')) return 'La verificación falló. Intentá nuevamente.';
-    if (lower.includes('network request failed') || lower.includes('fetch') || lower.includes('failed to fetch')) return 'No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.';
-    if (lower.includes('oauth') || lower.includes('provider')) return 'No se pudo iniciar sesión con Google.';
+    if (!text) return 'No se pudo completar la operaci├│n.';
+    if (lower.includes('invalid login credentials') || lower.includes('email or password is invalid') || lower.includes('invalid email or password')) return 'Email o contrase├▒a incorrectos.';
+    if (lower.includes('user already registered') || lower.includes('already registered') || lower.includes('user already exists') || lower.includes('already exists')) return 'Este email ya est├í registrado.';
+    if (lower.includes('password should be at least') || lower.includes('password is too weak') || lower.includes('weak password')) return 'La contrase├▒a es demasiado d├®bil. Us├í al menos 8 caracteres con letras y n├║meros.';
+    if (lower.includes('email not confirmed') || lower.includes('confirm your email')) return 'Deb├®s confirmar tu email antes de iniciar sesi├│n.';
+    if (lower.includes('sign in with password is not allowed') || lower.includes('password sign in is disabled')) return 'Este usuario no puede iniciar sesi├│n con contrase├▒a.';
+    if (lower.includes('captcha') || lower.includes('robot')) return 'La verificaci├│n fall├│. Intent├í nuevamente.';
+    if (lower.includes('network request failed') || lower.includes('fetch') || lower.includes('failed to fetch')) return 'No se pudo conectar con el servidor. Revis├í tu conexi├│n e intent├í de nuevo.';
+    if (lower.includes('oauth') || lower.includes('provider')) return 'No se pudo iniciar sesi├│n con Google.';
     return text;
   };
 
@@ -1925,7 +1924,7 @@ export default function RutinaTracker() {
       if (error) throw error;
       setErrorMsg("");
     } catch (err) {
-      setErrorMsg(translateAuthErrorMessage(err?.message || 'No se pudo iniciar sesión'));
+      setErrorMsg(translateAuthErrorMessage(err?.message || 'No se pudo iniciar sesi├│n'));
     }
   };
 
@@ -1938,14 +1937,14 @@ export default function RutinaTracker() {
     const password = fd.get("password");
     // basic client-side validation
     if (!email || !password) {
-      setErrorMsg('Completa email y contraseña.');
+      setErrorMsg('Completa email y contrase├▒a.');
       return;
     }
     // password policy: min 8 chars, must include letters and numbers
     const pwd = String(password);
     const pwdOk = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(pwd);
     if (!pwdOk) {
-      setErrorMsg('La contraseña debe tener mínimo 8 caracteres e incluir letras y números.');
+      setErrorMsg('La contrase├▒a debe tener m├¡nimo 8 caracteres e incluir letras y n├║meros.');
       return;
     }
     try {
@@ -1955,7 +1954,7 @@ export default function RutinaTracker() {
         setErrorMsg(translateAuthErrorMessage(res.error.message || 'Error al registrarse'));
         return;
       }
-      setNoticeMsg("Revisa tu correo para confirmar la cuenta antes de iniciar sesión.");
+      setNoticeMsg("Revisa tu correo para confirmar la cuenta antes de iniciar sesi├│n.");
       setErrorMsg("");
       // clear password field for security
       try { formEl.querySelector('input[name=password]').value = ''; } catch {}
@@ -1969,7 +1968,7 @@ export default function RutinaTracker() {
       const url = import.meta.env.VITE_SUPABASE_URL;
       const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
       if (!url || !key) {
-        setErrorMsg('Google sign-in no está configurado: faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
+        setErrorMsg('Google sign-in no est├í configurado: faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
         return;
       }
 
@@ -1990,7 +1989,7 @@ export default function RutinaTracker() {
     }
   };
 
-  // Mostrar pantalla de Login/Registro cuando no hay sesión
+  // Mostrar pantalla de Login/Registro cuando no hay sesi├│n
   if (!session || !session.user) {
     return (
       <div className="fixed inset-0 overflow-hidden bg-[#111214] text-neutral-100">
@@ -1998,7 +1997,7 @@ export default function RutinaTracker() {
           <div className="flex w-full max-w-md flex-col items-center">
             <img src="/android-chrome-512x512.png" alt="GymBro logo" className="w-64 h-64 sm:w-80 sm:h-80 object-contain -mt-12 sm:-mt-16" />
             <div className="mt-1 w-full rounded-2xl border border-neutral-800 bg-[#0F1112] p-6">
-              <h2 className="mb-4 text-xl font-black">Iniciar sesión / Registrarse</h2>
+              <h2 className="mb-4 text-xl font-black">Iniciar sesi├│n / Registrarse</h2>
               <form onSubmit={handleSignIn} className="flex flex-col gap-3">
                 <input name="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} type="email" placeholder="Email" autoComplete="email" required className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
                 <div className="relative">
@@ -2007,28 +2006,28 @@ export default function RutinaTracker() {
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     type={showLoginPassword ? "text" : "password"}
-                    placeholder="Contraseña"
+                    placeholder="Contrase├▒a"
                     autoComplete="current-password"
                     required
                     className="w-full min-h-[44px] bg-[#121315] border border-neutral-700 rounded-lg px-3 py-2 pr-11 text-sm text-white"
                   />
                   <button
                     type="button"
-                    aria-label={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={showLoginPassword ? 'Ocultar contrase├▒a' : 'Mostrar contrase├▒a'}
                     onClick={() => setShowLoginPassword((prev) => !prev)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
                   >
                     {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                <div className="text-xs text-neutral-500">La contraseña debe tener mínimo 8 caracteres e incluir letras y números.</div>
+                <div className="text-xs text-neutral-500">La contrase├▒a debe tener m├¡nimo 8 caracteres e incluir letras y n├║meros.</div>
                 <div className="flex gap-3 text-xs mt-1">
                   <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />8+ caracteres</div>
                   <div className={`flex items-center gap-1 ${passwordChecks.letters ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Letras</div>
-                  <div className={`flex items-center gap-1 ${passwordChecks.numbers ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />Números</div>
+                  <div className={`flex items-center gap-1 ${passwordChecks.numbers ? 'text-emerald-400' : 'text-neutral-500'}`}><Check size={14} />N├║meros</div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesión</button>
+                  <button type="submit" className="flex-1 bg-amber-500 text-black font-bold py-2 rounded-lg">Iniciar sesi├│n</button>
                   <button type="button" onClick={handleSignUp} disabled={!passwordValid || !signupEmail} className={`flex-1 font-bold py-2 rounded-lg ${(!passwordValid || !signupEmail) ? 'bg-neutral-700 text-neutral-400 cursor-not-allowed' : 'bg-neutral-800 text-neutral-300'}`}>Registrarme</button>
                 </div>
               </form>
@@ -2051,7 +2050,7 @@ export default function RutinaTracker() {
     );
   }
 
-  // Si el usuario no tiene días creados, cortar el flujo antes de cualquier acceso a day.exercises.
+  // Si el usuario no tiene d├¡as creados, cortar el flujo antes de cualquier acceso a day.exercises.
   if (routine.length === 0) {
     return (
       <div className="relative h-screen w-full overflow-hidden bg-[#111214] text-neutral-100 font-sans mobile-tight">
@@ -2103,7 +2102,7 @@ export default function RutinaTracker() {
                   </button>
                   <button
                     type="button"
-                    aria-label="Analíticas"
+                    aria-label="Anal├¡ticas"
                     onClick={() => handleOptionsAction('analytics')}
                     className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                     style={{
@@ -2135,7 +2134,7 @@ export default function RutinaTracker() {
                   </button>
                   <button
                     type="button"
-                    aria-label="Cerrar sesión"
+                    aria-label="Cerrar sesi├│n"
                     onClick={() => handleOptionsAction('logout')}
                     className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                     style={{
@@ -2168,8 +2167,8 @@ export default function RutinaTracker() {
 
           <div className="flex-1 flex flex-col justify-start">
             <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
-              <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
-              <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
+              <p className="text-sm font-semibold text-neutral-300">Todav├¡a no ten├®s ning├║n d├¡a en tu rutina.</p>
+              <p className="mt-1 text-xs text-neutral-500">Cre├í tu primer d├¡a para comenzar a planificar entrenamiento.</p>
               <button
                 id="tour-create-day"
                 type="button"
@@ -2177,7 +2176,7 @@ export default function RutinaTracker() {
                 disabled={!availableWeekdays.length}
                 className={`mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed ${showOnboarding && onboardingStep === 1 ? 'ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#1B1D21]' : ''}`}
               >
-                Crear primer día
+                Crear primer d├¡a
               </button>
             </div>
           </div>
@@ -2192,14 +2191,14 @@ export default function RutinaTracker() {
             <div className="absolute inset-x-0 bottom-6 mx-auto w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-300">Guía rápida</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-300">Gu├¡a r├ípida</p>
                   <h3 className="mt-1 text-lg font-bold text-white">{onboardingSteps[onboardingStep].title}</h3>
                 </div>
                 <button
                   type="button"
                   onClick={dismissOnboarding}
                   className="rounded-full border border-neutral-700 bg-neutral-800 p-2 text-neutral-300"
-                  aria-label="Cerrar guía"
+                  aria-label="Cerrar gu├¡a"
                 >
                   <X size={16} />
                 </button>
@@ -2251,7 +2250,7 @@ export default function RutinaTracker() {
             <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-bold text-white">Crear día</h3>
+                <h3 className="text-base font-bold text-white">Crear d├¡a</h3>
                 <button
                   type="button"
                   onClick={() => setShowCreateDaySheet(false)}
@@ -2263,7 +2262,7 @@ export default function RutinaTracker() {
               </div>
               <form onSubmit={handleCreateDay} className="mt-4 space-y-3">
                 <div>
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día de la semana</label>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">D├¡a de la semana</label>
                   <select
                     name="new_day_id"
                     value={createDayId}
@@ -2276,7 +2275,7 @@ export default function RutinaTracker() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título</label>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">T├¡tulo</label>
                   <input
                     name="new_day_title"
                     value={createDayTitle}
@@ -2343,7 +2342,7 @@ export default function RutinaTracker() {
                 <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
                   <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Plantillas guardadas</div>
                   {templates.length === 0 ? (
-                    <div className="text-sm text-neutral-400">Todavía no tenés plantillas guardadas.</div>
+                    <div className="text-sm text-neutral-400">Todav├¡a no ten├®s plantillas guardadas.</div>
                   ) : (
                     <div className="space-y-2">
                       {templates.map((template) => (
@@ -2376,7 +2375,7 @@ export default function RutinaTracker() {
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  if (window.confirm('¿Borrar esta plantilla?')) {
+                                  if (window.confirm('┬┐Borrar esta plantilla?')) {
                                     const ok = await deleteTemplate(template.id);
                                     if (ok) setShowTemplateManager(false);
                                   }
@@ -2460,7 +2459,7 @@ export default function RutinaTracker() {
                 </button>
                 <button
                   type="button"
-                  aria-label="Analíticas"
+                  aria-label="Anal├¡ticas"
                   onClick={() => handleOptionsAction('analytics')}
                   className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
@@ -2492,7 +2491,7 @@ export default function RutinaTracker() {
                 </button>
                 <button
                   type="button"
-                  aria-label="Cerrar sesión"
+                  aria-label="Cerrar sesi├│n"
                   onClick={() => handleOptionsAction('logout')}
                   className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
@@ -2574,8 +2573,8 @@ export default function RutinaTracker() {
                         <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: isActionOpen ? 1 : 0 }}>
                           <button
                             type="button"
-                            aria-label="Editar día"
-                            title="Editar día"
+                            aria-label="Editar d├¡a"
+                            title="Editar d├¡a"
                             onClick={() => handleEditFromDayAction(d.id)}
                             className="absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                             style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: isActionOpen ? 1 : 0 }}
@@ -2584,7 +2583,7 @@ export default function RutinaTracker() {
                           </button>
                           <button
                             type="button"
-                            aria-label="Agregar ejercicio al día"
+                            aria-label="Agregar ejercicio al d├¡a"
                             title="Agregar ejercicio"
                             onClick={() => handleAddExerciseFromDayAction(d.id)}
                             className="absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
@@ -2594,8 +2593,8 @@ export default function RutinaTracker() {
                           </button>
                           <button
                             type="button"
-                            aria-label="Eliminar día"
-                            title="Eliminar día"
+                            aria-label="Eliminar d├¡a"
+                            title="Eliminar d├¡a"
                             onClick={() => handleDeleteFromDayAction(d.id)}
                             className="absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/40 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                             style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: isActionOpen ? 1 : 0 }}
@@ -2609,7 +2608,7 @@ export default function RutinaTracker() {
                   );
                 })}
 
-                {/* Gradient overlay removed — revert to original layout */}
+                {/* Gradient overlay removed ÔÇö revert to original layout */}
               </div>
 
                 <div className="flex items-center gap-2">
@@ -2617,7 +2616,7 @@ export default function RutinaTracker() {
                   type="button"
                   onClick={openCreateDaySheet}
                   disabled={!availableWeekdays.length}
-                  aria-label="Añadir día"
+                  aria-label="A├▒adir d├¡a"
                   className="relative z-20 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112] shadow-lg"
                   style={{ backgroundColor: '#0F1112' }}
                 >
@@ -2629,15 +2628,15 @@ export default function RutinaTracker() {
 
       {!loadingRoutine && routine.length === 0 && (
         <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
-          <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
-          <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
+          <p className="text-sm font-semibold text-neutral-300">Todav├¡a no ten├®s ning├║n d├¡a en tu rutina.</p>
+          <p className="mt-1 text-xs text-neutral-500">Cre├í tu primer d├¡a para comenzar a planificar entrenamiento.</p>
           <button
             type="button"
             onClick={openCreateDaySheet}
             disabled={!availableWeekdays.length}
             className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Crear primer día
+            Crear primer d├¡a
           </button>
         </div>
       )}
@@ -2676,8 +2675,8 @@ export default function RutinaTracker() {
                     <option>Pecho</option>
                     <option>Espalda</option>
                     <option>Hombro</option>
-                    <option>Bíceps</option>
-                    <option>Tríceps</option>
+                    <option>B├¡ceps</option>
+                    <option>Tr├¡ceps</option>
                     <option>Pierna</option>
                     <option>Otros</option>
                   </select>
@@ -2726,7 +2725,7 @@ export default function RutinaTracker() {
                     type="submit"
                     className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase"
                   >
-                    {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
+                    {editingEx ? "Guardar Cambios" : "A├▒adir Ejercicio"}
                   </button>
                   <button
                     type="button"
@@ -2745,7 +2744,7 @@ export default function RutinaTracker() {
           <div ref={manageDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-white">Gestionar día</h3>
+              <h3 className="text-base font-bold text-white">Gestionar d├¡a</h3>
               <button
                 type="button"
                 onClick={() => setShowManageDay(false)}
@@ -2759,12 +2758,12 @@ export default function RutinaTracker() {
             <div className="mt-4 space-y-3">
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">D├¡a</span>
                   <span className="text-xs font-semibold text-neutral-300">
-                    {routine.find((d) => d.id === manageSelectedDay)?.label || 'Día'}
+                    {routine.find((d) => d.id === manageSelectedDay)?.label || 'D├¡a'}
                   </span>
                 </div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título del día</label>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">T├¡tulo del d├¡a</label>
                 <input
                   value={manageDayTitle}
                   onChange={(ev) => setManageDayTitle(ev.target.value)}
@@ -2782,8 +2781,8 @@ export default function RutinaTracker() {
                       try {
                         await supabase.from('dias_usuario').upsert({ user_id: session.user.id, day_id: manageSelectedDay, title: manageDayTitle }, { onConflict: ['user_id','day_id'] });
                       } catch (e) {
-                        console.warn('No se pudo guardar título de día', e);
-                        setErrorMsg('No se pudo guardar título en la nube.');
+                        console.warn('No se pudo guardar t├¡tulo de d├¡a', e);
+                        setErrorMsg('No se pudo guardar t├¡tulo en la nube.');
                       }
                     }
                     setDayTitles(prev => ({ ...prev, [manageSelectedDay]: manageDayTitle }));
@@ -2793,7 +2792,7 @@ export default function RutinaTracker() {
                   }}
                 className="w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold uppercase text-black"
               >
-                Guardar título
+                Guardar t├¡tulo
               </button>
 
               <div className="space-y-2">
@@ -2806,7 +2805,7 @@ export default function RutinaTracker() {
                     }}
                   className="w-full min-h-[44px] rounded-xl bg-red-700 px-3 py-2 text-xs font-bold text-white"
                 >
-                  Eliminar día
+                  Eliminar d├¡a
                 </button>
               </div>
             </div>
@@ -2824,7 +2823,7 @@ export default function RutinaTracker() {
           <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-white">Crear día</h3>
+              <h3 className="text-base font-bold text-white">Crear d├¡a</h3>
               <button
                 type="button"
                 onClick={() => setShowCreateDaySheet(false)}
@@ -2836,7 +2835,7 @@ export default function RutinaTracker() {
             </div>
             <form onSubmit={handleCreateDay} className="mt-4 space-y-3">
               <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día de la semana</label>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">D├¡a de la semana</label>
                 <select
                   name="new_day_id"
                   value={createDayId}
@@ -2849,7 +2848,7 @@ export default function RutinaTracker() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título</label>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">T├¡tulo</label>
                 <input
                   name="new_day_title"
                   value={createDayTitle}
@@ -2876,7 +2875,7 @@ export default function RutinaTracker() {
       >
         {day.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
-            <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
+            <p className="text-sm font-medium text-neutral-300">Este d├¡a todav├¡a no tiene ejercicios</p>
           </div>
         ) : (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
@@ -2944,11 +2943,11 @@ export default function RutinaTracker() {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
                       <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
-                        {ex.sets}×{ex.reps} · <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 text-neutral-400 hover:text-white">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
+                        {ex.sets}├ù{ex.reps} ┬À <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 text-neutral-400 hover:text-white">RIR</button> {ex.rir} ┬À descanso {formatRestLabel(ex.rest)}
                       </div>
                       <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
                         {last
-                          ? `Última vez (${displayDate(last.date)}): ${last.sets.map((s) => `${s.weight}kg×${s.reps}`).join(", ")}`
+                          ? `├Ültima vez (${displayDate(last.date)}): ${last.sets.map((s) => `${s.weight}kg├ù${s.reps}`).join(", ")}`
                           : "Sin registros previos"}
                       </div>
                     </div>
@@ -3009,8 +3008,8 @@ export default function RutinaTracker() {
                           }}
                           className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
                           style={{ pointerEvents: 'auto' }}
-                          aria-label={`Más opciones para ${ex.name}`}
-                          title="Más opciones"
+                          aria-label={`M├ís opciones para ${ex.name}`}
+                          title="M├ís opciones"
                         >
                           <MoreVertical size={18} />
                         </button>
@@ -3111,7 +3110,7 @@ export default function RutinaTracker() {
                               className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
                             >
                               <Check size={12} style={{ color: plate.hex }} />
-                              serie {i + 1}: {s.weight}kg × {s.reps}
+                              serie {i + 1}: {s.weight}kg ├ù {s.reps}
                             </div>
                           ))}
                           <button
@@ -3119,7 +3118,7 @@ export default function RutinaTracker() {
                             onClick={() => removeLastSet(ex.id)}
                             className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
                           >
-                            <Trash2 size={12} /> última
+                            <Trash2 size={12} /> ├║ltima
                           </button>
                         </div>
                       )}
@@ -3168,7 +3167,7 @@ export default function RutinaTracker() {
                             value={draft.notes || ""}
                             onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
                             onPointerDown={(e) => e.stopPropagation()}
-                            placeholder="Nota rápida"
+                            placeholder="Nota r├ípida"
                             className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
                           />
                         </div>
@@ -3222,7 +3221,7 @@ export default function RutinaTracker() {
             <div className="p-4 overflow-y-auto flex flex-col gap-3">
               {(history[showHistoryModal] || []).length === 0 ? (
                 <div className="text-center py-6 text-neutral-500 text-xs">
-                  Aún no tenés registros guardados para este ejercicio.
+                  A├║n no ten├®s registros guardados para este ejercicio.
                 </div>
               ) : (
                 [...(history[showHistoryModal] || [])]
@@ -3239,7 +3238,7 @@ export default function RutinaTracker() {
                             key={sIdx}
                             className="bg-[#1B1D21] border border-neutral-700/50 rounded-lg px-2.5 py-1 text-xs text-neutral-300 font-mono"
                           >
-                            S{sIdx + 1}: <strong className="text-white">{s.weight}kg</strong> × {s.reps}
+                            S{sIdx + 1}: <strong className="text-white">{s.weight}kg</strong> ├ù {s.reps}
                           </div>
                         ))}
                       </div>
@@ -3254,7 +3253,7 @@ export default function RutinaTracker() {
       <InfoModal
         term={info?.term}
         title={info?.term === 'RIR' ? 'RIR (Reps In Reserve)' : info?.term}
-        text={info?.term === 'RIR' ? 'RIR (Reps In Reserve) indica cuántas repeticiones más podrías realizar al final de la serie. Ej: RIR 1 = podrías hacer 1 repetición más.' : ''}
+        text={info?.term === 'RIR' ? 'RIR (Reps In Reserve) indica cu├íntas repeticiones m├ís podr├¡as realizar al final de la serie. Ej: RIR 1 = podr├¡as hacer 1 repetici├│n m├ís.' : ''}
         onClose={() => setInfo(null)}
       />
 
@@ -3275,14 +3274,14 @@ export default function RutinaTracker() {
         ) : (
           <div className="w-full max-w-md rounded-xl border border-red-500/30 bg-red-500/5 p-3 flex flex-col gap-2">
             <p className="text-xs text-neutral-300 text-center">
-              Esto borra todos los registros guardados de marcas pasadas. La estructura de ejercicios se conservará.
+              Esto borra todos los registros guardados de marcas pasadas. La estructura de ejercicios se conservar├í.
             </p>
             <div className="flex gap-2">
               <button
                 onClick={doReset}
                 className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold rounded-lg py-2"
               >
-                Sí, borrar marcas
+                S├¡, borrar marcas
               </button>
               <button
                 onClick={() => setConfirmReset(false)}
@@ -3320,7 +3319,7 @@ export default function RutinaTracker() {
           <div ref={timerConfirmRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
             <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
             <p className="text-sm text-neutral-300">
-              ¿Querés iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise.name}</span>?
+              ┬┐Quer├®s iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise.name}</span>?
             </p>
             <div className="mt-4 flex gap-2">
               <button
@@ -3349,7 +3348,7 @@ export default function RutinaTracker() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div ref={timerConfigRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-white">Configuración temporizador</div>
+              <div className="text-sm font-bold text-white">Configuraci├│n temporizador</div>
               <button type="button" onClick={() => setTimerConfigOpen(null)} className="min-h-[44px] min-w-[44px] rounded-full bg-neutral-800 inline-flex items-center justify-center text-neutral-300"><X size={18} /></button>
             </div>
             <div className="flex flex-col gap-3">
@@ -3438,7 +3437,7 @@ export default function RutinaTracker() {
               <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Plantillas guardadas</div>
                 {templates.length === 0 ? (
-                  <div className="text-sm text-neutral-400">Todavía no tenés plantillas guardadas.</div>
+                  <div className="text-sm text-neutral-400">Todav├¡a no ten├®s plantillas guardadas.</div>
                 ) : (
                   <div className="space-y-2">
                     {templates.map((template) => (
@@ -3471,7 +3470,7 @@ export default function RutinaTracker() {
                             <button
                               type="button"
                               onClick={async () => {
-                                if (window.confirm('¿Borrar esta plantilla?')) {
+                                if (window.confirm('┬┐Borrar esta plantilla?')) {
                                   const ok = await deleteTemplate(template.id);
                                   if (ok) setShowTemplateManager(false);
                                 }
@@ -3493,7 +3492,6 @@ export default function RutinaTracker() {
       )}
       {showProfile && session?.user && <ProfileModal onClose={() => setShowProfile(false)} user={session.user} onSaved={(n)=>setProfileName(n)} />}
       {showAnalytics && session?.user && <Analytics onClose={() => setShowAnalytics(false)} user={session.user} />}
-      <ChatWidget />
     </>
   );
 }
