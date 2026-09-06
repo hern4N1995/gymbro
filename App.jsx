@@ -275,6 +275,22 @@ export default function RutinaTracker() {
   const tokenRefreshedResolversRef = React.useRef([]);
   const reloadFromSupabaseRef = React.useRef(null);
 
+  const gearOverlayMaskStyle = useCallback(() => {
+    if (!(showOnboarding && onboardingStep === 0 && gearHighlightRect)) {
+      return null;
+    }
+
+    const centerX = gearHighlightRect.left + gearHighlightRect.width / 2;
+    const centerY = gearHighlightRect.top + gearHighlightRect.height / 2;
+    const radius = Math.max(gearHighlightRect.width, gearHighlightRect.height) / 2 + 12;
+    const softEdge = Math.max(radius - 4, 0);
+
+    return {
+      WebkitMaskImage: `radial-gradient(circle ${radius}px at ${centerX}px ${centerY}px, transparent 0, transparent ${softEdge}px, black ${radius}px)`,
+      maskImage: `radial-gradient(circle ${radius}px at ${centerX}px ${centerY}px, transparent 0, transparent ${softEdge}px, black ${radius}px)`,
+    };
+  }, [gearHighlightRect, onboardingStep, showOnboarding]);
+
   const updateGearHighlightRect = useCallback(() => {
     if (!showOnboarding || onboardingStep !== 0) {
       setGearHighlightRect(null);
@@ -2236,7 +2252,10 @@ export default function RutinaTracker() {
         </div>
 
         {showOnboarding && (
-          <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]">
+          <div
+            className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]"
+            style={gearOverlayMaskStyle() || {} }
+          >
             <div className="absolute inset-x-0 bottom-6 mx-auto w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
               <div className="flex items-start justify-between gap-3">
                 <div>
