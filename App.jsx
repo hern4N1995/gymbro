@@ -219,6 +219,10 @@ const uniqueById = (arr) => {
   return out;
 };
 
+const DEMO_DAY_ID = 'demo-lun';
+const DEMO_DAY_CARD_ID = 'demo-day-card';
+const DEMO_DAY_OPTIONS_ID = 'demo-day-options';
+
 const onboardingSteps = [
   {
     title: '1. Abrí las opciones',
@@ -236,7 +240,7 @@ const onboardingSteps = [
     title: '3. Mantén presionado',
     text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, renombrar o borrar.',
     accent: 'long-press',
-    targetId: 'demo-day-lun',
+    targetId: DEMO_DAY_OPTIONS_ID,
   },
   {
     title: '4. Empezá a entrenar',
@@ -283,6 +287,15 @@ export default function RutinaTracker() {
   const activeOnboardingTargetId = onboardingSteps[onboardingStep]?.targetId ?? null;
   const isDemoHighlightStep = onboardingStep === 2;
 
+  useEffect(() => {
+    if (!showOnboarding || !activeOnboardingTargetId) {
+      setHighlightRect(null);
+      return;
+    }
+
+    setHighlightRect(null);
+  }, [activeOnboardingTargetId, showOnboarding]);
+
   const gearOverlayMaskStyle = useCallback(() => {
     if (!(showOnboarding && activeOnboardingTargetId && highlightRect)) {
       return null;
@@ -304,6 +317,8 @@ export default function RutinaTracker() {
       setHighlightRect(null);
       return;
     }
+
+    setHighlightRect(null);
 
     const target = document.getElementById(activeOnboardingTargetId) || radialMenuRef.current;
     if (!target) {
@@ -348,13 +363,16 @@ export default function RutinaTracker() {
   useEffect(() => {
     if (!showOnboarding) {
       setDemoRoutine([]);
+      setDayActionMenu(null);
+      setHighlightRect(null);
       return;
     }
 
     if (isDemoHighlightStep) {
+      setSelectionForDemoDay();
       setDemoRoutine([
         {
-          id: 'demo-lun',
+          id: DEMO_DAY_ID,
           label: 'Lunes',
           sub: 'Empuje A',
           isDemo: true,
@@ -368,6 +386,8 @@ export default function RutinaTracker() {
     }
 
     setDemoRoutine([]);
+    setDayActionMenu(null);
+    setHighlightRect(null);
   }, [isDemoHighlightStep, showOnboarding]);
 
   const waitForTokenRefresh = (timeout = 2000) => {
@@ -1477,6 +1497,11 @@ export default function RutinaTracker() {
     openDayActionMenu(dayId);
   };
 
+  const setSelectionForDemoDay = () => {
+    setSelectedDay(DEMO_DAY_ID);
+    setDayActionMenu(DEMO_DAY_ID);
+  };
+
   const handleEditFromDayAction = (dayId) => {
     closeDayActionMenu();
     openManageDaySheet(dayId);
@@ -1580,6 +1605,8 @@ export default function RutinaTracker() {
     if (session?.user) {
       localStorage.setItem(`gymbro_onboarding_done_${session.user.id}`, '1');
     }
+    setHighlightRect(null);
+    setDayActionMenu(null);
     setDemoRoutine([]);
     setShowOnboarding(false);
     setOnboardingStep(0);
@@ -2672,7 +2699,7 @@ export default function RutinaTracker() {
                         onPointerMove={handlePillPointerMove}
                         onPointerCancel={handlePillPointerCancel}
                         onContextMenu={(event) => handlePillContextMenu(event, d.id)}
-                        id={d.isDemo ? 'demo-day-lun' : undefined}
+                        id={d.isDemo ? DEMO_DAY_CARD_ID : undefined}
                         className="relative z-0 shrink-0 min-h-[44px] min-w-[44px] flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-2 border transition-colors"
                         style={{
                           borderColor: active ? p.hex : "#2a2c30",
@@ -2691,7 +2718,7 @@ export default function RutinaTracker() {
                       </button>
 
                       <div
-                        id={`day-action-row-${d.id}`}
+                        id={d.isDemo ? DEMO_DAY_OPTIONS_ID : `day-action-row-${d.id}`}
                         className="relative z-40 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
                         style={{ width: isActionOpen ? '34px' : '0px', opacity: isActionOpen ? 1 : 0, zIndex: 40 }}
                       >
