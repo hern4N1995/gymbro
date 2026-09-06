@@ -294,6 +294,7 @@ export default function RutinaTracker() {
     }
     setHighlightRect(null);
     setDayActionMenu(null);
+    setExpanded(null);
     setDemoRoutine([]);
     setShowOnboarding(false);
     setOnboardingStep(0);
@@ -380,6 +381,7 @@ export default function RutinaTracker() {
 
   useEffect(() => {
     if (!showOnboarding) {
+      setExpanded(null);
       setDemoRoutine([]);
       setDayActionMenu(null);
       setHighlightRect(null);
@@ -390,8 +392,13 @@ export default function RutinaTracker() {
       if (onboardingStep === 2) {
         setSelectionForDemoDay();
         setDayActionMenu(DEMO_DAY_ID);
+        setExpanded(null);
+      } else if (onboardingStep === 3) {
+        setDayActionMenu(null);
+        setExpanded('demo-press');
       } else {
         setDayActionMenu(null);
+        setExpanded(null);
       }
       setDemoRoutine([
         {
@@ -408,6 +415,7 @@ export default function RutinaTracker() {
       return;
     }
 
+    setExpanded(null);
     setDemoRoutine([]);
     setDayActionMenu(null);
     setHighlightRect(null);
@@ -2480,19 +2488,20 @@ export default function RutinaTracker() {
                 {/* Gradient overlay removed — revert to original layout */}
               </div>
 
-                <div className="flex items-center gap-2">
-                <button
-                  id="create-first-day-btn"
-                  type="button"
-                  onClick={openCreateDaySheet}
-                  disabled={!availableWeekdays.length}
-                  aria-label="Añadir día"
-                  className="relative z-20 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112] shadow-lg"
-                  style={{ backgroundColor: '#0F1112' }}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
+                {routine.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openCreateDaySheet}
+                      disabled={!availableWeekdays.length}
+                      aria-label="Añadir día"
+                      className="relative z-20 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112] shadow-lg"
+                      style={{ backgroundColor: '#0F1112' }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                )}
             </div>
           </div>
 
@@ -2501,6 +2510,7 @@ export default function RutinaTracker() {
           <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
           <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
           <button
+            id="create-first-day-btn"
             type="button"
             onClick={openCreateDaySheet}
             disabled={!availableWeekdays.length}
@@ -2743,11 +2753,11 @@ export default function RutinaTracker() {
           overscrollBehavior: 'contain',
         }}
       >
-        {displayRoutine.length === 0 ? (
+        {displayRoutine.length === 0 && !showOnboarding ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
-        ) : safeDay.exercises.length === 0 ? (
+        ) : safeDay.exercises.length === 0 && !showOnboarding ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
@@ -2756,7 +2766,7 @@ export default function RutinaTracker() {
             <SortableContext items={safeDay.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
             {safeDay.exercises.map((ex) => {
               const rowId = (safeDay.isDemo && ex.id === 'demo-press') ? 'demo-exercise-row' : undefined;
-              const isOpen = expanded === ex.id;
+              const isOpen = showOnboarding && onboardingStep === 3 && ex.id === 'demo-press' ? true : expanded === ex.id;
               const todaySets = getTodaySets(ex.id);
               const last = getLastSession(ex.id);
               const draft = drafts[ex.id] || { weight: "", reps: "" };
