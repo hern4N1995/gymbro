@@ -768,24 +768,6 @@ export default function RutinaTracker() {
   }, []);
 
   useEffect(() => {
-    if (!backExitNotice) return;
-
-    const handleOutsidePress = (event) => {
-      const toast = document.getElementById('app-exit-toast');
-      if (toast && toast.contains(event.target)) return;
-      dismissBackExitNotice(true);
-    };
-
-    document.addEventListener('mousedown', handleOutsidePress);
-    document.addEventListener('touchstart', handleOutsidePress, { passive: true });
-
-    return () => {
-      document.removeEventListener('mousedown', handleOutsidePress);
-      document.removeEventListener('touchstart', handleOutsidePress);
-    };
-  }, [backExitNotice, dismissBackExitNotice]);
-
-  useEffect(() => {
     if (!exerciseMenuOpen) return;
 
     const handlePointerDown = (event) => {
@@ -1093,7 +1075,7 @@ export default function RutinaTracker() {
 
   const onboardingDemoVisible = showOnboarding && isDemoHighlightStep && demoRoutine.length > 0;
   const displayRoutine = onboardingDemoVisible ? [...routine, ...demoRoutine] : routine;
-  const shouldShowFullEmptyState = routine.length === 0 && (!showOnboarding || demoRoutine.length === 0);
+  const shouldShowFullEmptyState = displayRoutine.length === 0;
   const day = displayRoutine.length > 0 ? (displayRoutine.find((d) => d.id === selectedDay) || displayRoutine[0] || null) : null;
   const safeDay = day ?? {
     id: null,
@@ -2223,7 +2205,6 @@ export default function RutinaTracker() {
           pointerEvents: 'none',
           transform: 'translateZ(0)',
         }}
-        className="rounded-full ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214]"
       />,
       document.body
     )}
@@ -2753,11 +2734,11 @@ export default function RutinaTracker() {
           overscrollBehavior: 'contain',
         }}
       >
-        {displayRoutine.length === 0 && !showOnboarding ? (
+        {displayRoutine.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
-        ) : safeDay.exercises.length === 0 && !showOnboarding ? (
+        ) : safeDay.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
@@ -3189,7 +3170,6 @@ export default function RutinaTracker() {
           id="app-exit-toast"
           className="fixed inset-x-4 bottom-6 z-[80] flex justify-center transition-opacity duration-500 ease-out"
           style={{ opacity: backExitNoticeVisible ? 1 : 0 }}
-          onClick={() => dismissBackExitNotice(true)}
         >
           <div className="rounded-full border border-neutral-700 bg-[#111214]/95 px-4 py-2 text-center text-[11px] font-medium text-neutral-200 shadow-lg backdrop-blur-sm">
             {backExitNotice}
