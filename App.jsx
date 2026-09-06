@@ -286,6 +286,26 @@ export default function RutinaTracker() {
 
   const activeOnboardingTargetId = onboardingSteps[onboardingStep]?.targetId ?? null;
   const isDemoHighlightStep = onboardingStep === 2;
+  const currentOnboardingStep = onboardingSteps[onboardingStep] ?? onboardingSteps[0];
+
+  const dismissOnboarding = () => {
+    if (session?.user) {
+      localStorage.setItem(`gymbro_onboarding_done_${session.user.id}`, '1');
+    }
+    setHighlightRect(null);
+    setDayActionMenu(null);
+    setDemoRoutine([]);
+    setShowOnboarding(false);
+    setOnboardingStep(0);
+  };
+
+  const handleOnboardingNext = () => {
+    if (onboardingStep < onboardingSteps.length - 1) {
+      setOnboardingStep((prev) => prev + 1);
+      return;
+    }
+    dismissOnboarding();
+  };
 
   useEffect(() => {
     if (!showOnboarding || !activeOnboardingTargetId) {
@@ -1609,17 +1629,6 @@ export default function RutinaTracker() {
     }
   }, [session?.user?.id]);
 
-  const dismissOnboarding = () => {
-    if (session?.user) {
-      localStorage.setItem(`gymbro_onboarding_done_${session.user.id}`, '1');
-    }
-    setHighlightRect(null);
-    setDayActionMenu(null);
-    setDemoRoutine([]);
-    setShowOnboarding(false);
-    setOnboardingStep(0);
-  };
-
   useEffect(() => {
     if (!showOnboarding) return;
     if (onboardingStep === 0) {
@@ -2205,6 +2214,53 @@ export default function RutinaTracker() {
         className="rounded-full ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214]"
       />,
       document.body
+    )}
+    {showOnboarding && (
+      <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]">
+        <div className="absolute inset-x-0 bottom-6 mx-auto w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">Guía rápida</p>
+              <h3 className="mt-1 text-lg font-bold text-white">{currentOnboardingStep.title}</h3>
+            </div>
+            <button
+              type="button"
+              onClick={dismissOnboarding}
+              className="text-xs font-medium text-neutral-400 transition hover:text-white"
+            >
+              Saltar
+            </button>
+          </div>
+
+          <p className="mt-3 text-sm leading-6 text-neutral-300">{currentOnboardingStep.text}</p>
+
+          <div className="mt-4 flex items-center justify-center gap-2">
+            {onboardingSteps.map((step, index) => (
+              <span
+                key={step.title}
+                className={`h-2 w-2 rounded-full transition-all ${index === onboardingStep ? 'w-6 bg-amber-400' : 'bg-neutral-600'}`}
+              />
+            ))}
+          </div>
+
+          <div className="mt-5 flex gap-2">
+            <button
+              type="button"
+              onClick={dismissOnboarding}
+              className="flex-1 min-h-[44px] rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-neutral-800"
+            >
+              Saltar
+            </button>
+            <button
+              type="button"
+              onClick={handleOnboardingNext}
+              className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black transition hover:bg-amber-400"
+            >
+              {onboardingStep === onboardingSteps.length - 1 ? 'Listo' : 'Siguiente'}
+            </button>
+          </div>
+        </div>
+      </div>
     )}
     <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight flex flex-col">
       {loadingRoutine && (
