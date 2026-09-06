@@ -228,13 +228,13 @@ const onboardingSteps = [
     title: '1. Abrí las opciones',
     text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas o cerrar sesión.',
     accent: 'gear',
-    targetId: 'tour-gear-highlight-target',
+    targetId: 'tour-gear',
   },
   {
     title: '2. Creá tu primer día',
     text: 'Cuando estés listo, tocá “Crear primer día” para armar la rutina semanal.',
     accent: 'create-day',
-    targetId: 'tour-create-day',
+    targetId: 'create-first-day-btn',
   },
   {
     title: '3. Mantén presionado',
@@ -338,9 +338,7 @@ export default function RutinaTracker() {
       return;
     }
 
-    setHighlightRect(null);
-
-    const target = document.getElementById(activeOnboardingTargetId) || radialMenuRef.current;
+    const target = document.getElementById(activeOnboardingTargetId);
     if (!target) {
       setHighlightRect(null);
       return;
@@ -378,7 +376,7 @@ export default function RutinaTracker() {
       window.removeEventListener('scroll', handleUpdate);
       window.removeEventListener('orientationchange', handleUpdate);
     };
-  }, [activeOnboardingTargetId, showOnboarding, updateHighlightRect]);
+  }, [activeOnboardingTargetId, showOnboarding, updateHighlightRect, demoRoutine]);
 
   useEffect(() => {
     if (!showOnboarding) {
@@ -2478,6 +2476,7 @@ export default function RutinaTracker() {
 
                 <div className="flex items-center gap-2">
                 <button
+                  id="create-first-day-btn"
                   type="button"
                   onClick={openCreateDaySheet}
                   disabled={!availableWeekdays.length}
