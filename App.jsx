@@ -1602,12 +1602,12 @@ export default function RutinaTracker() {
     if (!session?.user) return;
     const key = `gymbro_onboarding_done_${session.user.id}`;
     const shouldShow = localStorage.getItem(key) !== '1';
-    if (shouldShow && routine.length === 0) {
+    if (shouldShow) {
       setShowOnboarding(true);
       setOnboardingStep(0);
       setMenuOpen(true);
     }
-  }, [session, routine.length]);
+  }, [session?.user?.id]);
 
   const dismissOnboarding = () => {
     if (session?.user) {
