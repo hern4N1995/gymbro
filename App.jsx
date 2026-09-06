@@ -1063,6 +1063,13 @@ export default function RutinaTracker() {
   const displayRoutine = onboardingDemoVisible ? [...routine, ...demoRoutine] : routine;
   const shouldShowFullEmptyState = routine.length === 0 && !showOnboarding;
   const day = displayRoutine.find((d) => d.id === selectedDay) || displayRoutine[0] || null;
+  const safeDay = day ?? {
+    id: null,
+    label: '',
+    sub: '',
+    exercises: [],
+    isDemo: false,
+  };
   const plate = PLATE[selectedDay] || PLATE["lun"];
 
   const sensors = useSensors(
@@ -1100,8 +1107,8 @@ export default function RutinaTracker() {
   const WEEKDAY_OPTIONS = WEEK_ORDER.map((id) => ({ id, label: DAY_LABEL_MAP[id] || id }));
   const availableWeekdays = WEEK_ORDER.filter((id) => !displayRoutine.some((d) => d.id === id));
   const existingRoutineDays = displayRoutine.map((d) => ({ id: d.id, label: d.label }));
-  const currentDayLabel = day ? String(day.label || '').toUpperCase() : '';
-  const currentDaySub = day && day.sub ? String(day.sub).toUpperCase() : '';
+  const currentDayLabel = safeDay.label ? String(safeDay.label || '').toUpperCase() : '';
+  const currentDaySub = safeDay.sub ? String(safeDay.sub).toUpperCase() : '';
 
   // Auto-select the most appropriate day after `routine` finishes loading.
   // Priority:
@@ -1626,11 +1633,11 @@ export default function RutinaTracker() {
       return;
     }
     const newHistory = {};
-    day.exercises.forEach((ex) => {
+    safeDay.exercises.forEach((ex) => {
       newHistory[ex.id] = loadExerciseHistory(ex.id);
     });
     setHistory((prev) => ({ ...prev, ...newHistory }));
-  }, [selectedDay, day, loadExerciseHistory]);
+  }, [selectedDay, day, safeDay, loadExerciseHistory]);
 
   // Al abrir un ejercicio (expanded), comprobar últimos 2 registros para detectar descenso
   useEffect(() => {
@@ -2671,14 +2678,14 @@ export default function RutinaTracker() {
           overscrollBehavior: 'contain',
         }}
       >
-        {day.exercises.length === 0 ? (
+        {safeDay.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
         ) : (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-            <SortableContext items={day.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-            {day.exercises.map((ex) => {
+            <SortableContext items={safeDay.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+            {safeDay.exercises.map((ex) => {
               const isOpen = expanded === ex.id;
               const todaySets = getTodaySets(ex.id);
               const last = getLastSession(ex.id);
