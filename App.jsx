@@ -238,7 +238,7 @@ const onboardingSteps = [
   },
   {
     title: '3. Mantén presionado',
-    text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, renombrar o borrar.',
+    text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, borrar o agregar ejercicos.',
     accent: 'long-press',
     targetId: DEMO_DAY_OPTIONS_ID,
   },
@@ -2399,8 +2399,9 @@ export default function RutinaTracker() {
               ref={radialMenuTriggerRef}
               type="button"
               aria-label="Opciones"
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 shadow-lg transition-all duration-200 ${menuOpen ? 'bg-neutral-800 text-white' : 'bg-[#111315] text-neutral-200 hover:bg-neutral-800 hover:text-white'}`}
             >
               <Settings size={16} />
             </button>
