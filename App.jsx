@@ -2188,31 +2188,8 @@ export default function RutinaTracker() {
         </div>
 
         {showOnboarding && (
-          <div className="fixed inset-0 z-[70] pointer-events-none">
-            <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px]" />
-
-            {onboardingStep === 0 && (
-              <div
-                className="absolute z-10 rounded-full border-2 border-amber-400/90 bg-[#111214]/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.46)]"
-                style={{ right: '1rem', top: '4.35rem', width: '44px', height: '44px' }}
-              />
-            )}
-
-            {onboardingStep === 1 && (
-              <div
-                className="absolute z-10 rounded-2xl border-2 border-amber-400/90 bg-[#111214]/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.46)]"
-                style={{ left: '50%', top: '44%', width: '196px', height: '54px', transform: 'translate(-50%, -50%)' }}
-              />
-            )}
-
-            {onboardingStep === 2 && (
-              <div
-                className="absolute z-10 rounded-[20px] border-2 border-amber-400/90 bg-[#111214]/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.46)]"
-                style={{ left: '50%', top: '48%', width: '260px', height: '120px', transform: 'translate(-50%, -50%)' }}
-              />
-            )}
-
-            <div className="pointer-events-auto absolute inset-x-0 bottom-6 mx-auto z-20 w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
+          <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]">
+            <div className="absolute inset-x-0 bottom-6 mx-auto w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-amber-300">Guía rápida</p>
