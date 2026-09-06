@@ -801,6 +801,7 @@ export default function RutinaTracker() {
     if (!menuOpen) return;
 
     const handlePointerDown = (event) => {
+      if (showOnboarding) return;
       const target = event.target;
       if (radialMenuTriggerRef.current && radialMenuTriggerRef.current.contains(target)) return;
       if (radialMenuRef.current && radialMenuRef.current.contains(target)) return;
@@ -819,7 +820,7 @@ export default function RutinaTracker() {
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('touchstart', handlePointerDown);
     };
-  }, [menuOpen]);
+  }, [menuOpen, showOnboarding]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -2216,7 +2217,10 @@ export default function RutinaTracker() {
       document.body
     )}
     {showOnboarding && (
-      <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]">
+      <div
+        className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[1px]"
+        style={gearOverlayMaskStyle() || undefined}
+      >
         <div className="absolute inset-x-0 bottom-6 mx-auto w-[92%] max-w-md rounded-2xl border border-neutral-700 bg-[#141719] p-4 shadow-2xl shadow-black/50">
           <div className="flex items-center justify-between gap-2">
             <div>
