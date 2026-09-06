@@ -228,7 +228,7 @@ const onboardingSteps = [
     title: '1. Abrí las opciones',
     text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas o cerrar sesión.',
     accent: 'gear',
-    targetId: 'tour-gear',
+    targetId: 'radial-menu-container',
   },
   {
     title: '2. Creá tu primer día',
@@ -246,7 +246,7 @@ const onboardingSteps = [
     title: '4. Empezá a entrenar',
     text: 'Agregá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
     accent: 'start',
-    targetId: null,
+    targetId: 'demo-exercise-row',
   },
 ];
 
@@ -285,7 +285,7 @@ export default function RutinaTracker() {
   const reloadFromSupabaseRef = React.useRef(null);
 
   const activeOnboardingTargetId = onboardingSteps[onboardingStep]?.targetId ?? null;
-  const isDemoHighlightStep = onboardingStep === 2;
+  const isDemoHighlightStep = onboardingStep === 2 || onboardingStep === 3;
   const currentOnboardingStep = onboardingSteps[onboardingStep] ?? onboardingSteps[0];
 
   const dismissOnboarding = () => {
@@ -387,7 +387,12 @@ export default function RutinaTracker() {
     }
 
     if (isDemoHighlightStep) {
-      setSelectionForDemoDay();
+      if (onboardingStep === 2) {
+        setSelectionForDemoDay();
+        setDayActionMenu(DEMO_DAY_ID);
+      } else {
+        setDayActionMenu(null);
+      }
       setDemoRoutine([
         {
           id: DEMO_DAY_ID,
@@ -406,7 +411,7 @@ export default function RutinaTracker() {
     setDemoRoutine([]);
     setDayActionMenu(null);
     setHighlightRect(null);
-  }, [isDemoHighlightStep, showOnboarding]);
+  }, [isDemoHighlightStep, showOnboarding, onboardingStep]);
 
   const waitForTokenRefresh = (timeout = 2000) => {
     return new Promise((resolve) => {
@@ -1080,8 +1085,8 @@ export default function RutinaTracker() {
 
   const onboardingDemoVisible = showOnboarding && isDemoHighlightStep && demoRoutine.length > 0;
   const displayRoutine = onboardingDemoVisible ? [...routine, ...demoRoutine] : routine;
-  const shouldShowFullEmptyState = routine.length === 0 && !showOnboarding;
-  const day = displayRoutine.find((d) => d.id === selectedDay) || displayRoutine[0] || null;
+  const shouldShowFullEmptyState = routine.length === 0 && (!showOnboarding || demoRoutine.length === 0);
+  const day = displayRoutine.length > 0 ? (displayRoutine.find((d) => d.id === selectedDay) || displayRoutine[0] || null) : null;
   const safeDay = day ?? {
     id: null,
     label: '',
@@ -2290,6 +2295,7 @@ export default function RutinaTracker() {
         <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex items-center">
           <div className="relative flex items-center justify-center">
             <div
+              id="radial-menu-container"
               ref={radialMenuRef}
               className="pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
               style={{
@@ -2737,7 +2743,11 @@ export default function RutinaTracker() {
           overscrollBehavior: 'contain',
         }}
       >
-        {safeDay.exercises.length === 0 ? (
+        {displayRoutine.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
+            <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
+          </div>
+        ) : safeDay.exercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-4 text-center">
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
@@ -2745,6 +2755,7 @@ export default function RutinaTracker() {
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
             <SortableContext items={safeDay.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
             {safeDay.exercises.map((ex) => {
+              const rowId = (safeDay.isDemo && ex.id === 'demo-press') ? 'demo-exercise-row' : undefined;
               const isOpen = expanded === ex.id;
               const todaySets = getTodaySets(ex.id);
               const last = getLastSession(ex.id);
@@ -2759,6 +2770,7 @@ export default function RutinaTracker() {
                 <SortableItem id={ex.id} key={ex.id}>
                   {({ attributes, listeners, setNodeRef, transformStyle, isDragging }) => (
                 <div
+                  id={rowId}
                   data-exercise-card
                   data-exercise-id={ex.id}
                   ref={(node) => { setNodeRef(node); if (node) expandedRefs.current[ex.id] = node; else delete expandedRefs.current[ex.id]; }}
