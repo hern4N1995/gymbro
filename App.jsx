@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Plus, Trash2, RotateCcw, Dumbbell, X, Check, Edit3, Settings, Calendar, History, ListPlus, Pencil, Timer, MoreVertical, User, GripVertical, Eye, EyeOff } from "lucide-react";
 import InfoModal from "./src/components/InfoModal";
 import { PrimaryButton, SecondaryButton } from "./src/components/Button";
@@ -270,8 +271,55 @@ export default function RutinaTracker() {
   const [sessionStatus, setSessionStatus] = useState('verifying'); // 'verifying' | 'none' | 'authenticated'
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [gearHighlightRect, setGearHighlightRect] = useState(null);
   const tokenRefreshedResolversRef = React.useRef([]);
   const reloadFromSupabaseRef = React.useRef(null);
+
+  const updateGearHighlightRect = useCallback(() => {
+    if (!showOnboarding || onboardingStep !== 0) {
+      setGearHighlightRect(null);
+      return;
+    }
+
+    const gearButton = document.getElementById('tour-gear');
+    if (!gearButton) {
+      setGearHighlightRect(null);
+      return;
+    }
+
+    const rect = gearButton.getBoundingClientRect();
+    setGearHighlightRect({
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    });
+  }, [showOnboarding, onboardingStep]);
+
+  useEffect(() => {
+    if (!(showOnboarding && onboardingStep === 0)) {
+      setGearHighlightRect(null);
+      return;
+    }
+
+    updateGearHighlightRect();
+
+    const handleUpdate = () => updateGearHighlightRect();
+    const supportsPassive = { passive: true };
+
+    window.addEventListener('resize', handleUpdate, supportsPassive);
+    window.addEventListener('scroll', handleUpdate, supportsPassive);
+    window.addEventListener('orientationchange', handleUpdate, supportsPassive);
+
+    const rafId = requestAnimationFrame(handleUpdate);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', handleUpdate);
+      window.removeEventListener('scroll', handleUpdate);
+      window.removeEventListener('orientationchange', handleUpdate);
+    };
+  }, [showOnboarding, onboardingStep, updateGearHighlightRect]);
 
   const waitForTokenRefresh = (timeout = 2000) => {
     return new Promise((resolve) => {
@@ -2402,8 +2450,26 @@ export default function RutinaTracker() {
     );
   }
 
+  const shouldRenderGearHighlight = showOnboarding && onboardingStep === 0 && gearHighlightRect && typeof document !== 'undefined';
+
   return (
     <>
+    {shouldRenderGearHighlight && createPortal(
+      <div
+        style={{
+          position: 'fixed',
+          top: gearHighlightRect.top,
+          left: gearHighlightRect.left,
+          width: gearHighlightRect.width,
+          height: gearHighlightRect.height,
+          zIndex: 80,
+          pointerEvents: 'none',
+          transform: 'translateZ(0)',
+        }}
+        className="rounded-full ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214]"
+      />,
+      document.body
+    )}
     <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight flex flex-col">
       {loadingRoutine && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,18,20,0.6)' }}>
