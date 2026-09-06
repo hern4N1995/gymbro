@@ -111,7 +111,11 @@ export default function RestTimer({ seconds = 90, onClose, vibrate = true, sound
 
   if (inline) {
     return (
-      <div className={`rounded-2xl border border-amber-500/40 bg-[#1B1B12] p-3 shadow-[0_0_18px_rgba(245,158,11,0.18)] ${running ? 'animate-[pulse_1.4s_ease-in-out_infinite]' : ''}`}>
+      <div
+        className={`rounded-2xl border border-amber-500/40 bg-[#1B1B12] p-3 shadow-[0_0_18px_rgba(245,158,11,0.18)] ${running ? 'animate-[pulse_1.4s_ease-in-out_infinite]' : ''}`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300/80">Descanso</div>

@@ -557,13 +557,13 @@ export default function RutinaTracker() {
   const timerConfigRef = React.useRef(null);
   const templateManagerRef = React.useRef(null);
 
-  useClickOutside(createDayRef, () => setShowCreateDaySheet(false), showCreateDaySheet);
-  useClickOutside(manageDayRef, () => setShowManageDay(false), showManageDay);
-  useClickOutside(editExRef, () => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }, isEditMode);
-  useClickOutside(historyModalRef, () => setShowHistoryModal(null), Boolean(showHistoryModal));
+  useClickOutside(createDayRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowCreateDaySheet(false); }, showCreateDaySheet);
+  useClickOutside(manageDayRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowManageDay(false); }, showManageDay);
+  useClickOutside(editExRef, () => { try { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); } catch (e) {} setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }, isEditMode);
+  useClickOutside(historyModalRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowHistoryModal(null); }, Boolean(showHistoryModal));
   useClickOutside(timerConfirmRef, () => { setTimerConfirmExercise(null); suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); }, Boolean(timerConfirmExercise));
-  useClickOutside(timerConfigRef, () => setTimerConfigOpen(null), Boolean(timerConfigOpen));
-  useClickOutside(templateManagerRef, () => setShowTemplateManager(false), Boolean(showTemplateManager));
+  useClickOutside(timerConfigRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setTimerConfigOpen(null); }, Boolean(timerConfigOpen));
+  useClickOutside(templateManagerRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); }, Boolean(showTemplateManager));
 
   useEffect(() => {
     let t = null;
@@ -643,51 +643,19 @@ export default function RutinaTracker() {
   };
 
   const closeTopLevelOverlay = useCallback(() => {
-    if (showCreateDaySheet) {
-      setShowCreateDaySheet(false);
-      return true;
-    }
-    if (showManageDay) {
-      setShowManageDay(false);
-      return true;
-    }
-    if (showProfile) {
-      setShowProfile(false);
-      return true;
-    }
-    if (showAnalytics) {
-      setShowAnalytics(false);
-      return true;
-    }
-    if (timerConfigOpen) {
-      setTimerConfigOpen(null);
-      return true;
-    }
-    if (showHistoryModal) {
-      setShowHistoryModal(null);
-      return true;
-    }
-    if (expanded) {
-      setExpanded(null);
-      return true;
-    }
-    if (dayActionMenu) {
-      setDayActionMenu(null);
-      return true;
-    }
-    if (exerciseMenuOpen) {
-      setExerciseMenuOpen(null);
-      return true;
-    }
-    if (menuOpen) {
-      setMenuOpen(false);
-      return true;
-    }
-    if (showTimer) {
-      setShowTimer(false);
-      setActiveTimerExercise(null);
-      return true;
-    }
+    const doClose = (fn) => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); fn(); return true; };
+
+    if (showCreateDaySheet) return doClose(() => setShowCreateDaySheet(false));
+    if (showManageDay) return doClose(() => setShowManageDay(false));
+    if (showProfile) return doClose(() => setShowProfile(false));
+    if (showAnalytics) return doClose(() => setShowAnalytics(false));
+    if (timerConfigOpen) return doClose(() => setTimerConfigOpen(null));
+    if (showHistoryModal) return doClose(() => setShowHistoryModal(null));
+    if (expanded) return doClose(() => setExpanded(null));
+    if (dayActionMenu) return doClose(() => setDayActionMenu(null));
+    if (exerciseMenuOpen) return doClose(() => setExerciseMenuOpen(null));
+    if (menuOpen) return doClose(() => setMenuOpen(false));
+    if (showTimer) return doClose(() => { setShowTimer(false); setActiveTimerExercise(null); });
     return false;
   }, [dayActionMenu, exerciseMenuOpen, menuOpen, showAnalytics, showCreateDaySheet, showHistoryModal, showManageDay, showProfile, showTimer, timerConfigOpen, expanded]);
 
@@ -785,6 +753,10 @@ export default function RutinaTracker() {
     const handleOutsidePress = (event) => {
       const toast = document.getElementById('app-exit-toast');
       if (toast && toast.contains(event.target)) return;
+      try {
+        suppressClickAfterModalCloseRef.current = true;
+        setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+      } catch (e) {}
       dismissBackExitNotice(true);
     };
 
@@ -808,6 +780,11 @@ export default function RutinaTracker() {
       if (trigger && trigger.contains(target)) return;
       if (menuNode && menuNode.contains(target)) return;
 
+      try {
+        suppressClickAfterModalCloseRef.current = true;
+        setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+      } catch (e) {}
+
       setExerciseMenuOpen(null);
     };
 
@@ -828,6 +805,11 @@ export default function RutinaTracker() {
       const target = event.target;
       if (radialMenuTriggerRef.current && radialMenuTriggerRef.current.contains(target)) return;
       if (radialMenuRef.current && radialMenuRef.current.contains(target)) return;
+      // Prevent the same pointer/click from reaching underlying elements when closing
+      try {
+        suppressClickAfterModalCloseRef.current = true;
+        setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+      } catch (e) {}
       setMenuOpen(false);
       try {
         if (radialMenuTriggerRef.current && typeof radialMenuTriggerRef.current.blur === 'function') {
@@ -852,6 +834,10 @@ export default function RutinaTracker() {
       const target = event.target;
       const node = expandedRefs.current[expanded];
       if (node && node.contains(target)) return;
+      try {
+        suppressClickAfterModalCloseRef.current = true;
+        setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+      } catch (e) {}
       setExpanded(null);
     };
 
@@ -1508,6 +1494,11 @@ export default function RutinaTracker() {
       const anchorEl = document.querySelector(`[data-pill-day-id="${dayActionMenu}"]`);
       const target = event.target;
       if (menuEl && !menuEl.contains(target) && (!anchorEl || !anchorEl.contains(target))) {
+        try {
+          suppressClickAfterModalCloseRef.current = true;
+          setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+        } catch (e) {}
+
         closeDayActionMenu();
       }
     };
@@ -1670,7 +1661,7 @@ export default function RutinaTracker() {
       newHistory[ex.id] = loadExerciseHistory(ex.id);
     });
     setHistory((prev) => ({ ...prev, ...newHistory }));
-  }, [selectedDay, day, safeDay, loadExerciseHistory]);
+  }, [selectedDay, day, loadExerciseHistory]);
 
   // Al abrir un ejercicio (expanded), comprobar últimos 2 registros para detectar descenso
   useEffect(() => {
@@ -2221,6 +2212,9 @@ export default function RutinaTracker() {
 
   const shouldRenderHighlight = showOnboarding && activeOnboardingTargetId && highlightRect && typeof document !== 'undefined';
 
+  // Consider the "menu principal" to be when no top-level overlays or editors are open.
+  const isMainMenu = !showProfile && !showAnalytics && !showCreateDaySheet && !showHistoryModal && !showManageDay && !showTimer && !timerConfigOpen && !expanded && !dayActionMenu && !exerciseMenuOpen && !showOnboarding;
+
   return (
     <>
     {shouldRenderHighlight && createPortal(
@@ -2330,7 +2324,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Perfil"
-                  onClick={() => handleOptionsAction('profile')}
+                  onClick={(e) => { e.stopPropagation(); handleOptionsAction('profile'); }}
                   className="pointer-events-auto absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2346,7 +2340,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Analíticas"
-                  onClick={() => handleOptionsAction('analytics')}
+                  onClick={(e) => { e.stopPropagation(); handleOptionsAction('analytics'); }}
                   className="pointer-events-auto absolute left-[18px] top-[26px] flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2362,7 +2356,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Mis rutinas"
-                  onClick={() => handleOptionsAction('templates')}
+                  onClick={(e) => { e.stopPropagation(); handleOptionsAction('templates'); }}
                   className="pointer-events-auto absolute left-[18px] top-[62px] flex items-center justify-center rounded-full border border-amber-500/40 bg-[#1B1B12] text-amber-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2378,7 +2372,7 @@ export default function RutinaTracker() {
                 <button
                   type="button"
                   aria-label="Cerrar sesión"
-                  onClick={() => handleOptionsAction('logout')}
+                  onClick={(e) => { e.stopPropagation(); handleOptionsAction('logout'); }}
                   className="pointer-events-auto absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/50 bg-[#1C171A] text-red-300 shadow-lg transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
                   style={{
                     width: 32,
@@ -2400,7 +2394,11 @@ export default function RutinaTracker() {
               type="button"
               aria-label="Opciones"
               aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((prev) => !prev)}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (closeTopLevelOverlay()) return;
+                setMenuOpen((prev) => !prev);
+              }}
               className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 shadow-lg transition-all duration-200 ${menuOpen ? 'bg-neutral-800 text-white' : 'bg-[#111315] text-neutral-200 hover:bg-neutral-800 hover:text-white'}`}
             >
               <Settings size={16} />
@@ -2504,7 +2502,7 @@ export default function RutinaTracker() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={openCreateDaySheet}
+                      onClick={(e) => { e.stopPropagation(); if (closeTopLevelOverlay()) return; openCreateDaySheet(); }}
                       disabled={!availableWeekdays.length}
                       aria-label="Añadir día"
                       className="relative z-20 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full pl-3 pr-3 py-2 border border-dashed border-neutral-700 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed bg-[#0F1112] shadow-lg"
@@ -2524,7 +2522,7 @@ export default function RutinaTracker() {
           <button
             id="create-first-day-btn"
             type="button"
-            onClick={openCreateDaySheet}
+            onClick={(e) => { e.stopPropagation(); if (closeTopLevelOverlay()) return; openCreateDaySheet(); }}
             disabled={!availableWeekdays.length}
             className="mt-4 min-h-[44px] rounded-full bg-amber-500 px-4 py-2 text-xs font-bold uppercase text-black disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -2709,7 +2707,11 @@ export default function RutinaTracker() {
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowCreateDaySheet(false);
+            if (e.target === e.currentTarget) {
+              suppressClickAfterModalCloseRef.current = true;
+              setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+              setShowCreateDaySheet(false);
+            }
           }}
         >
           <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -2718,7 +2720,7 @@ export default function RutinaTracker() {
               <h3 className="text-base font-bold text-white">Crear día</h3>
               <button
                 type="button"
-                onClick={() => setShowCreateDaySheet(false)}
+                onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowCreateDaySheet(false); }}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
                 aria-label="Cerrar"
               >
@@ -2925,7 +2927,8 @@ export default function RutinaTracker() {
                             onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onTouchStart={(event) => event.stopPropagation()}
-                            onClick={() => {
+                            onClick={(event) => {
+                              event.stopPropagation();
                               setEditingEx(ex);
                               setOpenFromManage(false);
                               setIsEditMode(true);
@@ -2943,7 +2946,8 @@ export default function RutinaTracker() {
                             onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onTouchStart={(event) => event.stopPropagation()}
-                            onClick={() => {
+                            onClick={(event) => {
+                              event.stopPropagation();
                               setShowHistoryModal(ex.id);
                               setExerciseMenuOpen(null);
                             }}
@@ -2959,7 +2963,8 @@ export default function RutinaTracker() {
                             onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(event) => event.stopPropagation()}
                             onTouchStart={(event) => event.stopPropagation()}
-                            onClick={() => {
+                            onClick={(event) => {
+                              event.stopPropagation();
                               handleDeleteExercise(ex.id);
                               setExerciseMenuOpen(null);
                             }}
@@ -2984,6 +2989,8 @@ export default function RutinaTracker() {
                         sound={timerOpts.sound}
                         inline
                         onClose={() => {
+                          suppressClickAfterModalCloseRef.current = true;
+                          setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
                           setShowTimer(false);
                           setActiveTimerExercise(null);
                         }}
@@ -3091,7 +3098,11 @@ export default function RutinaTracker() {
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowHistoryModal(null);
+            if (e.target === e.currentTarget) {
+              suppressClickAfterModalCloseRef.current = true;
+              setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+              setShowHistoryModal(null);
+            }
           }}
         >
           <div ref={historyModalRef} className="bg-[#1B1D21] border border-neutral-800 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -3104,7 +3115,7 @@ export default function RutinaTracker() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowHistoryModal(null)}
+                onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowHistoryModal(null); }}
                 className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-neutral-800 p-2 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
                 aria-label="Cerrar"
               >
@@ -3148,7 +3159,7 @@ export default function RutinaTracker() {
         term={info?.term}
         title={info?.term === 'RIR' ? 'RIR (Reps In Reserve)' : info?.term}
         text={info?.term === 'RIR' ? 'RIR (Reps In Reserve) indica cuántas repeticiones más podrías realizar al final de la serie. Ej: RIR 1 = podrías hacer 1 repetición más.' : ''}
-        onClose={() => setInfo(null)}
+        onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setInfo(null); }}
       />
 
       {errorMsg && (
@@ -3242,7 +3253,7 @@ export default function RutinaTracker() {
           <div ref={timerConfigRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-bold text-white">Configuración temporizador</div>
-              <button type="button" onClick={() => setTimerConfigOpen(null)} className="min-h-[44px] min-w-[44px] rounded-full bg-neutral-800 inline-flex items-center justify-center text-neutral-300"><X size={18} /></button>
+              <button type="button" onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setTimerConfigOpen(null); }} className="min-h-[44px] min-w-[44px] rounded-full bg-neutral-800 inline-flex items-center justify-center text-neutral-300"><X size={18} /></button>
             </div>
             <div className="flex flex-col gap-3">
               <div>
@@ -3260,18 +3271,20 @@ export default function RutinaTracker() {
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => {
-                    saveRestConfig(timerConfigOpen, timerConfigTemp);
-                    setTimerConfigOpen(null);
-                  }}
+                      saveRestConfig(timerConfigOpen, timerConfigTemp);
+                      suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+                      setTimerConfigOpen(null);
+                    }}
                   className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
                 >Guardar</button>
                 <button
                   onClick={() => {
-                    saveRestConfig(timerConfigOpen, timerConfigTemp);
-                    const ex = routine.flatMap((d) => d.exercises).find((e) => e.id === timerConfigOpen);
-                    openTimerForExercise(timerConfigOpen, ex?.name || '');
-                    setTimerConfigOpen(null);
-                  }}
+                      saveRestConfig(timerConfigOpen, timerConfigTemp);
+                      const ex = routine.flatMap((d) => d.exercises).find((e) => e.id === timerConfigOpen);
+                      openTimerForExercise(timerConfigOpen, ex?.name || '');
+                      suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+                      setTimerConfigOpen(null);
+                    }}
                   className="flex-1 min-h-[44px] rounded-xl bg-green-600 px-3 py-2 text-sm font-bold text-white"
                 >Guardar y Iniciar</button>
               </div>
@@ -3280,14 +3293,14 @@ export default function RutinaTracker() {
         </div>
       )}
       {showTemplateManager && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) setShowTemplateManager(false); }}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); } }}>
           <div ref={templateManagerRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-bold text-white">Mis rutinas</h3>
               <button
                 type="button"
-                onClick={() => setShowTemplateManager(false)}
+                onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); }}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
                 aria-label="Cerrar"
               >
@@ -3383,9 +3396,9 @@ export default function RutinaTracker() {
           </div>
         </div>
       )}
-      {showProfile && session?.user && <ProfileModal onClose={() => setShowProfile(false)} user={session.user} onSaved={(n)=>setProfileName(n)} />}
-      {showAnalytics && session?.user && <Analytics onClose={() => setShowAnalytics(false)} user={session.user} />}
-      <ChatWidget />
+      {showProfile && session?.user && <ProfileModal onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowProfile(false); }} user={session.user} onSaved={(n)=>setProfileName(n)} />}
+      {showAnalytics && session?.user && <Analytics onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowAnalytics(false); }} user={session.user} />}
+      {isMainMenu && <ChatWidget />}
     </>
   );
 }

@@ -49,6 +49,7 @@ body {
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   font-variant-numeric: tabular-nums;
+  font-weight: 400;
 }
 
 #root {
