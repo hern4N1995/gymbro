@@ -224,21 +224,25 @@ const onboardingSteps = [
     title: '1. Abrí las opciones',
     text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas o cerrar sesión.',
     accent: 'gear',
+    targetId: 'tour-gear-highlight-target',
   },
   {
     title: '2. Creá tu primer día',
     text: 'Cuando estés listo, tocá “Crear primer día” para armar la rutina semanal.',
     accent: 'create-day',
+    targetId: 'tour-create-day',
   },
   {
     title: '3. Mantén presionado',
     text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, renombrar o borrar.',
     accent: 'long-press',
+    targetId: 'demo-day-lun',
   },
   {
     title: '4. Empezá a entrenar',
     text: 'Agregá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
     accent: 'start',
+    targetId: null,
   },
 ];
 
@@ -271,56 +275,60 @@ export default function RutinaTracker() {
   const [sessionStatus, setSessionStatus] = useState('verifying'); // 'verifying' | 'none' | 'authenticated'
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const [gearHighlightRect, setGearHighlightRect] = useState(null);
+  const [highlightRect, setHighlightRect] = useState(null);
+  const [demoRoutine, setDemoRoutine] = useState([]);
   const tokenRefreshedResolversRef = React.useRef([]);
   const reloadFromSupabaseRef = React.useRef(null);
 
+  const activeOnboardingTargetId = onboardingSteps[onboardingStep]?.targetId ?? null;
+  const isDemoHighlightStep = onboardingStep === 2;
+
   const gearOverlayMaskStyle = useCallback(() => {
-    if (!(showOnboarding && onboardingStep === 0 && gearHighlightRect)) {
+    if (!(showOnboarding && activeOnboardingTargetId && highlightRect)) {
       return null;
     }
 
-    const centerX = gearHighlightRect.left + gearHighlightRect.width / 2;
-    const centerY = gearHighlightRect.top + gearHighlightRect.height / 2;
-    const radius = Math.max(gearHighlightRect.width, gearHighlightRect.height) / 2 + 12;
+    const centerX = highlightRect.left + highlightRect.width / 2;
+    const centerY = highlightRect.top + highlightRect.height / 2;
+    const radius = Math.max(highlightRect.width, highlightRect.height) / 2 + 12;
     const softEdge = Math.max(radius - 4, 0);
 
     return {
       WebkitMaskImage: `radial-gradient(circle ${radius}px at ${centerX}px ${centerY}px, transparent 0, transparent ${softEdge}px, black ${radius}px)`,
       maskImage: `radial-gradient(circle ${radius}px at ${centerX}px ${centerY}px, transparent 0, transparent ${softEdge}px, black ${radius}px)`,
     };
-  }, [gearHighlightRect, onboardingStep, showOnboarding]);
+  }, [activeOnboardingTargetId, highlightRect, showOnboarding]);
 
-  const updateGearHighlightRect = useCallback(() => {
-    if (!showOnboarding || onboardingStep !== 0) {
-      setGearHighlightRect(null);
+  const updateHighlightRect = useCallback(() => {
+    if (!showOnboarding || !activeOnboardingTargetId) {
+      setHighlightRect(null);
       return;
     }
 
-    const gearButton = document.getElementById('tour-gear');
-    if (!gearButton) {
-      setGearHighlightRect(null);
+    const target = document.getElementById(activeOnboardingTargetId) || radialMenuRef.current;
+    if (!target) {
+      setHighlightRect(null);
       return;
     }
 
-    const rect = gearButton.getBoundingClientRect();
-    setGearHighlightRect({
+    const rect = target.getBoundingClientRect();
+    setHighlightRect({
       top: rect.top,
       left: rect.left,
       width: rect.width,
       height: rect.height,
     });
-  }, [showOnboarding, onboardingStep]);
+  }, [activeOnboardingTargetId, showOnboarding]);
 
   useEffect(() => {
-    if (!(showOnboarding && onboardingStep === 0)) {
-      setGearHighlightRect(null);
+    if (!showOnboarding || !activeOnboardingTargetId) {
+      setHighlightRect(null);
       return;
     }
 
-    updateGearHighlightRect();
+    updateHighlightRect();
 
-    const handleUpdate = () => updateGearHighlightRect();
+    const handleUpdate = () => updateHighlightRect();
     const supportsPassive = { passive: true };
 
     window.addEventListener('resize', handleUpdate, supportsPassive);
@@ -335,7 +343,32 @@ export default function RutinaTracker() {
       window.removeEventListener('scroll', handleUpdate);
       window.removeEventListener('orientationchange', handleUpdate);
     };
-  }, [showOnboarding, onboardingStep, updateGearHighlightRect]);
+  }, [activeOnboardingTargetId, showOnboarding, updateHighlightRect]);
+
+  useEffect(() => {
+    if (!showOnboarding) {
+      setDemoRoutine([]);
+      return;
+    }
+
+    if (isDemoHighlightStep) {
+      setDemoRoutine([
+        {
+          id: 'demo-lun',
+          label: 'Lunes',
+          sub: 'Empuje A',
+          isDemo: true,
+          exercises: [
+            { id: 'demo-press', name: 'Press banca plano', sets: 4, reps: '8-10', rir: '1-2', rest: '90s', exercise_id: 'demo-press' },
+            { id: 'demo-dips', name: 'Dips asistidos', sets: 3, reps: '10-12', rir: '1', rest: '60s', exercise_id: 'demo-dips' },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    setDemoRoutine([]);
+  }, [isDemoHighlightStep, showOnboarding]);
 
   const waitForTokenRefresh = (timeout = 2000) => {
     return new Promise((resolve) => {
@@ -1006,7 +1039,9 @@ export default function RutinaTracker() {
     }
   }, []);
 
-  const day = routine.find((d) => d.id === selectedDay) || routine[0] || null;
+  const onboardingDemoVisible = showOnboarding && isDemoHighlightStep && demoRoutine.length > 0;
+  const displayRoutine = onboardingDemoVisible ? demoRoutine : routine;
+  const day = displayRoutine.find((d) => d.id === selectedDay) || displayRoutine[0] || null;
   const plate = PLATE[selectedDay] || PLATE["lun"];
 
   const sensors = useSensors(
@@ -1042,8 +1077,8 @@ export default function RutinaTracker() {
   const WEEK_ORDER = ['lun','mar','mie','jue','vie','sab','dom'];
   const DAY_LABEL_MAP = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
   const WEEKDAY_OPTIONS = WEEK_ORDER.map((id) => ({ id, label: DAY_LABEL_MAP[id] || id }));
-  const availableWeekdays = WEEK_ORDER.filter((id) => !routine.some((d) => d.id === id));
-  const existingRoutineDays = routine.map((d) => ({ id: d.id, label: d.label }));
+  const availableWeekdays = WEEK_ORDER.filter((id) => !displayRoutine.some((d) => d.id === id));
+  const existingRoutineDays = displayRoutine.map((d) => ({ id: d.id, label: d.label }));
   const currentDayLabel = day ? String(day.label || '').toUpperCase() : '';
   const currentDaySub = day && day.sub ? String(day.sub).toUpperCase() : '';
 
@@ -1545,6 +1580,7 @@ export default function RutinaTracker() {
     if (session?.user) {
       localStorage.setItem(`gymbro_onboarding_done_${session.user.id}`, '1');
     }
+    setDemoRoutine([]);
     setShowOnboarding(false);
     setOnboardingStep(0);
   };
@@ -2137,8 +2173,9 @@ export default function RutinaTracker() {
           <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex items-center">
             <div className="relative flex items-center justify-center">
               <div
+                id="tour-gear-highlight-target"
                 ref={radialMenuRef}
-                className={`pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showOnboarding && onboardingStep === 0 ? 'ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214] rounded-full' : ''}`}
+                className="pointer-events-none absolute right-[-20px] top-1/2 -translate-y-1/2 flex items-center justify-center overflow-visible transition-[opacity,transform] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-full"
                 style={{
                   opacity: menuOpen ? 1 : 0,
                   width: '120px',
@@ -2222,7 +2259,7 @@ export default function RutinaTracker() {
                 type="button"
                 aria-label="Opciones"
                 onClick={() => setMenuOpen(!menuOpen)}
-                className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white ${showOnboarding && onboardingStep === 0 ? 'ring-2 ring-amber-400/80 ring-offset-2 ring-offset-[#111214]' : ''}`}
+                className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-all duration-200 hover:bg-neutral-800 hover:text-white"
               >
                 <Settings size={16} />
               </button>
@@ -2469,18 +2506,18 @@ export default function RutinaTracker() {
     );
   }
 
-  const shouldRenderGearHighlight = showOnboarding && onboardingStep === 0 && gearHighlightRect && typeof document !== 'undefined';
+  const shouldRenderHighlight = showOnboarding && activeOnboardingTargetId && highlightRect && typeof document !== 'undefined';
 
   return (
     <>
-    {shouldRenderGearHighlight && createPortal(
+    {shouldRenderHighlight && createPortal(
       <div
         style={{
           position: 'fixed',
-          top: gearHighlightRect.top,
-          left: gearHighlightRect.left,
-          width: gearHighlightRect.width,
-          height: gearHighlightRect.height,
+          top: highlightRect.top,
+          left: highlightRect.left,
+          width: highlightRect.width,
+          height: highlightRect.height,
           zIndex: 80,
           pointerEvents: 'none',
           transform: 'translateZ(0)',
@@ -2595,6 +2632,7 @@ export default function RutinaTracker() {
             </div>
 
             <button
+              id="tour-gear"
               ref={radialMenuTriggerRef}
               type="button"
               aria-label="Opciones"
@@ -2619,7 +2657,7 @@ export default function RutinaTracker() {
                 className={`relative flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar ${routine.length <= 2 ? 'justify-start' : 'justify-start'}`}
                 style={{ paddingRight: 96 }}
               >
-                {routine.map((d) => {
+                {displayRoutine.map((d) => {
                   const p = PLATE[d.id] || { hex: "#888", label: "P", sub: "" };
                   const active = d.id === selectedDay;
                   const isActionOpen = dayActionMenu === d.id;
@@ -2634,6 +2672,7 @@ export default function RutinaTracker() {
                         onPointerMove={handlePillPointerMove}
                         onPointerCancel={handlePillPointerCancel}
                         onContextMenu={(event) => handlePillContextMenu(event, d.id)}
+                        id={d.isDemo ? 'demo-day-lun' : undefined}
                         className="relative z-0 shrink-0 min-h-[44px] min-w-[44px] flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-2 border transition-colors"
                         style={{
                           borderColor: active ? p.hex : "#2a2c30",
