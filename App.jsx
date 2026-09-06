@@ -1060,7 +1060,16 @@ export default function RutinaTracker() {
   }, []);
 
   const onboardingDemoVisible = showOnboarding && isDemoHighlightStep && demoRoutine.length > 0;
-  const displayRoutine = onboardingDemoVisible ? demoRoutine : routine;
+  const displayRoutine = onboardingDemoVisible ? [...routine, ...demoRoutine] : routine;
+  console.log('[onboarding demo render]', {
+    showOnboarding,
+    onboardingStep,
+    routineLength: routine.length,
+    demoRoutineLength: demoRoutine.length,
+    displayRoutineLength: displayRoutine.length,
+    demoRoutine,
+    displayRoutine,
+  });
   const day = displayRoutine.find((d) => d.id === selectedDay) || displayRoutine[0] || null;
   const plate = PLATE[selectedDay] || PLATE["lun"];
 
@@ -2178,8 +2187,8 @@ export default function RutinaTracker() {
     );
   }
 
-  // Si el usuario no tiene días creados, cortar el flujo antes de cualquier acceso a day.exercises.
-  if (routine.length === 0) {
+  // Si el usuario no tiene días creados y no hay onboarding activo, cortar el flujo antes de cualquier acceso a day.exercises.
+  if (routine.length === 0 && !showOnboarding) {
     return (
       <div className="relative h-screen w-full overflow-hidden bg-[#111214] text-neutral-100 font-sans mobile-tight">
         <div className="relative z-10 flex h-full flex-col">
@@ -2778,7 +2787,7 @@ export default function RutinaTracker() {
             </div>
           </div>
 
-      {!loadingRoutine && routine.length === 0 && (
+      {!loadingRoutine && displayRoutine.length === 0 && (
         <div className="mx-4 mt-4 rounded-2xl border border-dashed border-neutral-700 bg-[#1B1D21] p-5 text-center">
           <p className="text-sm font-semibold text-neutral-300">Todavía no tenés ningún día en tu rutina.</p>
           <p className="mt-1 text-xs text-neutral-500">Creá tu primer día para comenzar a planificar entrenamiento.</p>
