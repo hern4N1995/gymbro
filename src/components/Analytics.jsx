@@ -69,7 +69,7 @@ export default function Analytics({ user, onClose, isVisible = true }) {
     if (!selectedExercise) return [];
     // group by date and compute 1RM estimate (max per session) and total session volume
     const byDate = {};
-    hist.filter(h => h.exercise_id === selectedExercise).forEach((r) => {
+    hist.filter(h => String(h.exercise_id) === String(selectedExercise)).forEach((r) => {
       const d = r.date;
       if (!byDate[d]) byDate[d] = { date: d, volumes: 0, rms: [] };
       const vol = volumeSeries(r);
@@ -84,15 +84,14 @@ export default function Analytics({ user, onClose, isVisible = true }) {
   const weeklyVolumeByMuscle = useMemo(() => {
     // last 7 days (count series per muscle)
     const now = new Date();
-    const sevenAgo = new Date(now.getTime() - 6*24*60*60*1000);
+    const sevenAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
     const perMuscle = {};
     hist.forEach(r => {
       const d = new Date(r.date + 'T00:00:00');
       if (d < sevenAgo) return;
-      // prefer persisted muscle_group from rutinas_usuario
-      const ex = exerciseList.find(x => x.id === r.exercise_id);
-      const muscle = ex?.muscle_group || EXERCISE_MUSCLE_MAP[r.exercise_id] || 'Otros';
-      perMuscle[muscle] = (perMuscle[muscle] || 0) + 1; // each row = 1 series
+      const ex = exerciseList.find(x => String(x.id) === String(r.exercise_id));
+      const muscle = ex?.muscle_group || EXERCISE_MUSCLE_MAP[String(r.exercise_id)] || 'Otros';
+      perMuscle[muscle] = (perMuscle[muscle] || 0) + 1;
     });
     const groups = ['Pecho','Espalda','Hombro','Bíceps','Tríceps','Pierna','Otros'];
     return groups.map(g => {
@@ -165,14 +164,35 @@ export default function Analytics({ user, onClose, isVisible = true }) {
           <div className="flex items-center gap-2 w-full">
             <label className="text-sm text-neutral-400">Buscar / Ejercicio</label>
             <div className="flex-1">
-              <input list="exerciseOptions" value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Buscar ejercicio" className="w-full bg-[#121315] p-2 rounded" onBlur={() => {
-                // if exact match, select it
-                const found = exerciseList.find(ex => ex.name.toLowerCase() === (search || '').toLowerCase());
-                if (found) setSelectedExercise(found.id);
-              }} />
-              <datalist id="exerciseOptions">
-                {exerciseList.map(ex => <option key={ex.id} value={ex.name} />)}
-              </datalist>
+              <input
+                value={search}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setSearch(next);
+                  const found = exerciseList.find(ex => ex.name.toLowerCase() === next.trim().toLowerCase());
+                  if (found) setSelectedExercise(found.id);
+                }}
+                placeholder="Buscar ejercicio"
+                className="w-full bg-[#0B0C0D] p-2 rounded-lg border border-neutral-600 text-neutral-100 placeholder:text-neutral-500 focus:border-amber-500 focus:outline-none shadow-sm"
+              />
+              <select
+                value={selectedExercise ?? ''}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSelectedExercise(nextId || null);
+                  const found = exerciseList.find(ex => ex.id === nextId);
+                  if (found) setSearch(found.name);
+                }}
+                className="mt-2 w-full bg-[#0B0C0D] border border-neutral-600 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:border-amber-500 focus:outline-none appearance-none shadow-sm"
+              >
+                {exerciseList.length === 0 ? (
+                  <option value="">Sin ejercicios cargados</option>
+                ) : (
+                  exerciseList.map(ex => (
+                    <option key={ex.id} value={ex.id}>{ex.name}</option>
+                  ))
+                )}
+              </select>
             </div>
             {loading && <div className="text-sm text-neutral-400 mt-1">Cargando datos...</div>}
           </div>
@@ -232,13 +252,42 @@ export default function Analytics({ user, onClose, isVisible = true }) {
             {weeklyVolumeByMuscle.length === 0 ? (
               <div className="text-sm text-neutral-500">No hay datos disponibles.</div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={weeklyVolumeByMuscle} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" domain={[0, weeklyMax]} ticks={xTicks} />
-                  <YAxis type="category" dataKey="muscle" />
-                  <Tooltip />
-                  <Bar dataKey="count" label={renderBarLabel}>
+              <ResponsiveContainer width="100%" height={340}>
+                <BarChart data={weeklyVolumeByMuscle} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2A2D31" />
+                  <XAxis
+                    type="number"
+                    domain={[0, weeklyMax]}
+                    ticks={xTicks}
+                    tick={{ fill: '#D1D5DB', fontSize: 11 }}
+                    axisLine={{ stroke: '#374151' }}
+                    tickLine={{ stroke: '#374151' }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="muscle"
+                    width={92}
+                    interval={0}
+                    tick={{ fill: '#E5E7EB', fontSize: 11 }}
+                    axisLine={{ stroke: '#374151' }}
+                    tickLine={{ stroke: '#374151' }}
+                  />
+                  <Tooltip
+                    formatter={(value) => [`${value} series`, 'Cantidad']}
+                    labelFormatter={(label) => `Grupo: ${label}`}
+                    contentStyle={{
+                      backgroundColor: '#0F1112',
+                      border: '1px solid #2A2D31',
+                      borderRadius: 10,
+                      color: '#E5E7EB',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                      padding: '10px 12px'
+                    }}
+                    labelStyle={{ color: '#F3F4F6', fontWeight: 700 }}
+                    itemStyle={{ color: '#E5E7EB' }}
+                    cursor={{ fill: 'rgba(148, 163, 184, 0.06)' }}
+                  />
+                  <Bar dataKey="count" label={renderBarLabel} radius={[0, 6, 6, 0]}>
                     {weeklyVolumeByMuscle.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
