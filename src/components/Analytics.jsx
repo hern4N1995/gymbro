@@ -42,7 +42,15 @@ export default function Analytics({ user, onClose, isVisible = true }) {
         // fetch exercises names with muscle_group
         const { data: r, error: rErr } = await supabase.from('rutinas_usuario').select('id,name,muscle_group').eq('user_id', user.id);
         if (rErr) throw rErr;
-        const map = (r || []).map(x => ({ id: x.id, name: x.name, muscle_group: x.muscle_group }));
+        const uniqueByName = new Map();
+        (r || []).forEach((x) => {
+          const key = String(x.name || '').trim().toLowerCase();
+          if (!key) return;
+          if (!uniqueByName.has(key)) {
+            uniqueByName.set(key, { id: x.id, name: x.name, muscle_group: x.muscle_group });
+          }
+        });
+        const map = Array.from(uniqueByName.values());
         setExerciseList(map);
         if (map.length && !selectedExercise) setSelectedExercise(map[0].id);
       } catch (e) {
@@ -103,8 +111,9 @@ export default function Analytics({ user, onClose, isVisible = true }) {
 
   // Custom label renderer for bar rows (single tidy label at right)
   const renderBarLabel = (props) => {
-    const { x, y, width, height, payload } = props;
-    const count = payload?.count ?? payload?.value ?? 0;
+    const { x, y, width, height, payload, value } = props;
+    const rawCount = payload?.count ?? payload?.value ?? value ?? payload?.payload?.count ?? payload?.payload?.value ?? 0;
+    const count = Number.isFinite(Number(rawCount)) ? Number(rawCount) : 0;
     const txt = `${count}/${upperThreshold}`;
     const tx = x + width + 8;
     const ty = y + height / 2 + 4;
