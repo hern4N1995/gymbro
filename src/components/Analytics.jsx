@@ -7,7 +7,9 @@ import EXERCISE_MUSCLE_MAP from "../config/muscleMapping";
 import { PrimaryButton, SecondaryButton } from "./Button";
 import useClickOutside from "../hooks/useClickOutside";
 
-export default function Analytics({ user, onClose }) {
+export default function Analytics({ user, onClose, isVisible = true }) {
+  const D = 300;
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
   const [hist, setHist] = useState([]);
   const [loading, setLoading] = useState(false);
   const [exerciseList, setExerciseList] = useState([]); // { id, name, muscle_group }
@@ -120,9 +122,9 @@ export default function Analytics({ user, onClose }) {
   useClickOutside(containerRef, onClose, true);
 
   return (
-    <div className="fixed inset-0 z-50 p-0 sm:p-4 flex items-start sm:items-center justify-center">
-      <div className="fixed inset-0 bg-black/60" />
-      <div ref={containerRef} className="relative bg-[#111214] border border-neutral-800 rounded-none sm:rounded-2xl w-full h-full sm:h-auto sm:max-w-4xl overflow-auto p-4">
+    <div className="fixed inset-0 z-50 p-0 sm:p-4 flex items-start sm:items-center justify-center" style={{ pointerEvents: isVisible ? 'auto' : 'none' }}>
+      <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: isVisible ? 1 : 0 }} />
+      <div ref={containerRef} className="relative bg-[#111214] border border-neutral-800 rounded-none sm:rounded-2xl w-full h-full sm:h-auto sm:max-w-4xl overflow-auto p-4" style={{ transform: isVisible ? 'translateX(0)' : 'translateX(100%)', transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`, opacity: isVisible ? 1 : 0 }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold">Analíticas & Progreso</h3>
           <button

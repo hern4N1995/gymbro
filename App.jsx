@@ -25,6 +25,251 @@ function SortableItem({ id, children }) {
   return children({ attributes, listeners, setNodeRef, transformStyle, isDragging });
 }
 
+// Profile modal transition wrapper (moved out of component to keep
+// stable identity across parent renders). Receives `show` boolean,
+// `user`, `onClose` and `onSaved` callbacks.
+function ProfileModalTransition({ show, user, onClose, onSaved }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(false);
+  const PROFILE_TRANS_DUR = 300;
+
+  // render-level: nothing logged in production
+
+  useEffect(() => {
+    let t = null;
+    let visListener = null;
+    if (show) {
+      setMounted(true);
+          try {
+            if (typeof document !== 'undefined' && document.hidden) {
+              visListener = () => {
+                if (!document.hidden) {
+                  setVisible(true);
+                  try { document.removeEventListener('visibilitychange', visListener); } catch (e) {}
+                  visListener = null;
+                }
+              };
+              document.addEventListener('visibilitychange', visListener);
+            } else {
+              t = setTimeout(() => {
+                setVisible(true);
+              }, 20);
+            }
+      } catch (e) {
+        t = setTimeout(() => setVisible(true), 20);
+      }
+    } else if (mounted) {
+      try { console.trace('[ProfileModalTransition] setVisible(false) via hide path', { show, mounted, visible, timestamp: Date.now() }); } catch (e) {}
+      setVisible(false);
+      t = setTimeout(() => setMounted(false), PROFILE_TRANS_DUR + 20);
+    }
+    return () => {
+      if (t) clearTimeout(t);
+      if (visListener) {
+        try { document.removeEventListener('visibilitychange', visListener); } catch (e) {}
+        visListener = null;
+      }
+    };
+  }, [show]);
+
+  useEffect(() => {
+    const handler = () => { /* no-op visibility debug removed */ };
+    try { document.addEventListener('visibilitychange', handler); } catch (e) {}
+    return () => { try { document.removeEventListener('visibilitychange', handler); } catch (e) {} };
+  }, []);
+
+  if (!mounted) return null;
+
+  return (
+    <ProfileModal isVisible={visible} user={user} onClose={() => { setVisible(false); setTimeout(() => setMounted(false), PROFILE_TRANS_DUR); try { onClose && onClose(); } catch (e) {} }} onSaved={onSaved} />
+  );
+
+}
+
+function CreateDaySheetTransition({ show, createDayRef, onClose, children }) {
+    const [mounted, setMounted] = useState(show);
+    const [visible, setVisible] = useState(false);
+    const D = 300;
+    const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
+    useEffect(() => {
+      let t = null;
+      if (show) {
+        setMounted(true);
+        t = setTimeout(() => setVisible(true), 20);
+      } else if (mounted) {
+        setVisible(false);
+        t = setTimeout(() => setMounted(false), D + 20);
+      }
+      return () => { if (t) clearTimeout(t); };
+    }, [show]);
+
+    if (!mounted) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ pointerEvents: mounted ? 'auto' : 'none' }}>
+        <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }} onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }} />
+
+        <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }}>
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+// Manage Day sheet transition (Category B) - slides from bottom with backdrop fade
+function ManageDaySheetTransition({ show, manageDayRef, onClose, children }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(false);
+  const D = 300;
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
+  useEffect(() => {
+    let t = null;
+    if (show) {
+      setMounted(true);
+      t = setTimeout(() => setVisible(true), 20);
+    } else if (mounted) {
+      setVisible(false);
+      t = setTimeout(() => setMounted(false), D + 20);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ pointerEvents: mounted ? 'auto' : 'none' }}>
+      <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }} onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }} />
+
+      <div ref={manageDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Template Manager sheet transition (slides from bottom like other sheets)
+function TemplateManagerTransition({ show, templateManagerRef, onClose, children }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(false);
+  const D = 300;
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
+  useEffect(() => {
+    let t = null;
+    if (show) {
+      setMounted(true);
+      t = setTimeout(() => setVisible(true), 20);
+    } else if (mounted) {
+      setVisible(false);
+      t = setTimeout(() => setMounted(false), D + 20);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ pointerEvents: mounted ? 'auto' : 'none' }}>
+      <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }} onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }} />
+
+      <div ref={templateManagerRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Edit Exercise modal transition wrapper (slides from center like previous modals)
+function EditExerciseTransition({ show, editExRef, onClose, children }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(false);
+  const D = 300;
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
+  useEffect(() => {
+    let t = null;
+    if (show) {
+      setMounted(true);
+      t = setTimeout(() => setVisible(true), 20);
+    } else if (mounted) {
+      setVisible(false);
+      t = setTimeout(() => setMounted(false), D + 20);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ pointerEvents: mounted ? 'auto' : 'none' }}>
+      <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }} onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }} />
+
+      <div ref={editExRef} className="w-full max-w-md rounded-2xl bg-[#1B1D21] border border-amber-500/40 p-4" onClick={(e) => e.stopPropagation()} style={{ transform: visible ? 'translateY(0)' : 'translateY(8%)', transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Analytics transition wrapper (Category A) - slides from right with fade
+function AnalyticsTransition({ show, user, onClose }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(false);
+  const D = 300;
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
+  useEffect(() => {
+    let t = null;
+    if (show) {
+      setMounted(true);
+      t = setTimeout(() => setVisible(true), 20);
+    } else if (mounted) {
+      setVisible(false);
+      t = setTimeout(() => setMounted(false), D + 20);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <Analytics isVisible={visible} user={user} onClose={() => { setVisible(false); setTimeout(() => setMounted(false), D); try { onClose && onClose(); } catch (e) {} }} />
+  );
+}
+
+// Timer confirm popup transition wrapper - fade + zoom
+function TimerConfirmTransition({ show, timerConfirmRef, onClose, children }) {
+  const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(false);
+  const D = 250;
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
+  useEffect(() => {
+    let t = null;
+    if (show) {
+      setMounted(true);
+      t = setTimeout(() => setVisible(true), 20);
+    } else if (mounted) {
+      setVisible(false);
+      t = setTimeout(() => setMounted(false), D + 20);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ pointerEvents: mounted ? 'auto' : 'none' }}>
+      <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }} onClick={(e) => { if (e.target === e.currentTarget) onClose && onClose(); }} />
+      <div ref={timerConfirmRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ transform: visible ? 'scale(1)' : 'scale(0.9)', transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`, opacity: visible ? 1 : 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // Configuración visual por día
 const PLATE = {
   lun: { hex: "#D7263D", label: "25", sub: "Empuje A" },
@@ -255,6 +500,7 @@ export default function RutinaTracker() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [history, setHistory] = useState({});
   const [expanded, setExpanded] = useState(null);
+  const [expandedHeights, setExpandedHeights] = useState({});
   const [showHistoryModal, setShowHistoryModal] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingEx, setEditingEx] = useState(null);
@@ -282,6 +528,7 @@ export default function RutinaTracker() {
   const [highlightRect, setHighlightRect] = useState(null);
   const [demoRoutine, setDemoRoutine] = useState([]);
   const tokenRefreshedResolversRef = React.useRef([]);
+  const lastAuthEventTsRef = React.useRef(0);
   const reloadFromSupabaseRef = React.useRef(null);
 
   const activeOnboardingTargetId = onboardingSteps[onboardingStep]?.targetId ?? null;
@@ -554,6 +801,7 @@ export default function RutinaTracker() {
   const radialMenuRef = React.useRef(null);
   const radialMenuTriggerRef = React.useRef(null);
   const expandedRefs = React.useRef({});
+  const expandContentRefs = React.useRef({});
   const suppressClickAfterModalCloseRef = React.useRef(false);
 
   const createDayRef = React.useRef(null);
@@ -571,6 +819,14 @@ export default function RutinaTracker() {
   useClickOutside(timerConfirmRef, () => { setTimerConfirmExercise(null); suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); }, Boolean(timerConfirmExercise));
   useClickOutside(timerConfigRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setTimerConfigOpen(null); }, Boolean(timerConfigOpen));
   useClickOutside(templateManagerRef, () => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); }, Boolean(showTemplateManager));
+
+  useEffect(() => {
+    if (expanded && expandContentRefs.current[expanded]) {
+      const node = expandContentRefs.current[expanded];
+      const scrollHeight = node.scrollHeight;
+      setExpandedHeights(prev => ({ ...prev, [expanded]: scrollHeight }));
+    }
+  }, [expanded]);
 
   useEffect(() => {
     let t = null;
@@ -878,6 +1134,16 @@ export default function RutinaTracker() {
     init();
 
     const listener = supabase.auth.onAuthStateChange((_event, sess) => {
+      // Debounce rapid auth events (GoTrue may fire several when visibility changes)
+      try {
+        const now = Date.now();
+        if (now - lastAuthEventTsRef.current < 500) {
+          // ignore rapid subsequent events
+          return;
+        }
+        lastAuthEventTsRef.current = now;
+      } catch (e) {}
+
       // When tokens refresh or user signs in we may need to notify waiters
       // and reload remote data. Handle those events specially.
       if (_event === 'TOKEN_REFRESHED' || _event === 'SIGNED_IN') {
@@ -1378,6 +1644,7 @@ export default function RutinaTracker() {
   };
 
   const openCreateDaySheet = () => {
+    if (closeTopLevelOverlay && closeTopLevelOverlay()) return;
     const nextAvailable = WEEK_ORDER.filter((id) => !routine.some((d) => d.id === id));
     if (!nextAvailable.length) {
       setErrorMsg('Ya usaste todos los weekdays disponibles.');
@@ -1389,6 +1656,12 @@ export default function RutinaTracker() {
   };
 
   const openManageDaySheet = (dayId = null) => {
+    // If opening from a day action menu, close that menu explicitly
+    if (dayActionMenu) {
+      suppressClickAfterModalCloseRef.current = true;
+      setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+      setDayActionMenu(null);
+    }
     if (!routine.length) return;
     const current = dayId || selectedDay || routine[0]?.id || null;
     if (!current) return;
@@ -1919,7 +2192,7 @@ export default function RutinaTracker() {
   const handleDeleteExercise = async (exId) => {
     const ok = window.confirm("¿Querés eliminar este ejercicio?");
     if (!ok) return;
-
+    
     if (session && session.user) {
       try {
         // If exId is a numeric DB id, delete by `id`, otherwise delete by `exercise_id` string
@@ -1994,6 +2267,7 @@ export default function RutinaTracker() {
 
   const startTimerButtonLongPress = (event, ex) => {
     if (event && event.button !== undefined && event.button !== 0) return;
+    event?.stopPropagation();
     const point = event?.touches?.[0] || event;
     timerPointerStartRef.current = { x: point.clientX, y: point.clientY };
     timerDragDetectedRef.current = false;
@@ -2295,6 +2569,7 @@ export default function RutinaTracker() {
           <div className="bg-[#0F1112] border border-neutral-800 rounded-lg p-4">Cargando rutina...</div>
         </div>
       )}
+
       <div className="relative px-4 pt-6 pb-4 border-b border-neutral-800 sticky top-0 bg-[#111214]/95 backdrop-blur z-10 flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-neutral-500 text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">
@@ -2538,202 +2813,139 @@ export default function RutinaTracker() {
         </div>
       )}
 
-      {isEditMode && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); } }}>
-            <div ref={editExRef} className="w-full max-w-md rounded-2xl bg-[#1B1D21] border border-amber-500/40 p-4" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
-                <Edit3 size={15} />
-                {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
-              </h3>
-              <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
-                <input
-                  type="hidden"
-                  name="day_id"
-                  value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')}
-                />
-                <div>
-                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
-                  <input
-                    name="name"
-                    defaultValue={editingEx?.name || ""}
-                    required
-                    placeholder="Ej: Press Banca Plano"
-                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
-                  <select
-                    name="muscle_group"
-                    defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"}
-                    required
-                    className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                  >
-                    <option>Pecho</option>
-                    <option>Espalda</option>
-                    <option>Hombro</option>
-                    <option>Bíceps</option>
-                    <option>Tríceps</option>
-                    <option>Pierna</option>
-                    <option>Otros</option>
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">Series</label>
-                    <input
-                      name="sets"
-                      type="number"
-                      defaultValue={editingEx?.sets || 3}
-                      required
-                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">Reps Obj.</label>
-                    <input
-                      name="reps"
-                      defaultValue={editingEx?.reps || "10-12"}
-                      required
-                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">RIR</label>
-                    <input
-                      name="rir"
-                      defaultValue={editingEx?.rir || "1-2"}
-                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
-                    <input
-                      name="rest"
-                      defaultValue={formatRestLabel(editingEx?.rest) || "90s"}
-                      className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="submit"
-                    className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase"
-                  >
-                    {editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}
-                    className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
+      <EditExerciseTransition show={Boolean(isEditMode)} editExRef={editExRef} onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }}>
+        <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2">
+          <Edit3 size={15} />
+          {editingEx ? `Editando: ${editingEx.name}` : `Agregar nuevo ejercicio`}
+        </h3>
+        <form onSubmit={handleSaveExercise} className="flex flex-col gap-3">
+          <input type="hidden" name="day_id" value={editingEx ? (editingEx.day_id || selectedDay || '') : (selectedDay || '')} />
+          <div>
+            <label className="text-[10px] text-neutral-400 font-semibold uppercase">Nombre del Ejercicio</label>
+            <input name="name" defaultValue={editingEx?.name || ""} required placeholder="Ej: Press Banca Plano" className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="text-[10px] text-neutral-400 font-semibold uppercase">Grupo Muscular</label>
+            <select name="muscle_group" defaultValue={editingEx?.muscle_group || EXERCISE_MUSCLE_MAP[editingEx?.id] || "Pecho"} required className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white">
+              <option>Pecho</option>
+              <option>Espalda</option>
+              <option>Hombro</option>
+              <option>Bíceps</option>
+              <option>Tríceps</option>
+              <option>Pierna</option>
+              <option>Otros</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Series</label>
+              <input name="sets" type="number" defaultValue={editingEx?.sets || 3} required className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
+            </div>
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Reps Obj.</label>
+              <input name="reps" defaultValue={editingEx?.reps || "10-12"} required className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
             </div>
           </div>
-        )}
-      {showManageDay && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
-          <div ref={manageDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-white">Gestionar día</h3>
-              <button
-                type="button"
-                onClick={() => setShowManageDay(false)}
-                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-neutral-800 p-2 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
-                aria-label="Cerrar"
-              >
-                <X size={18} />
-              </button>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">RIR</label>
+              <input name="rir" defaultValue={editingEx?.rir || "1-2"} className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
             </div>
-
-            <div className="mt-4 space-y-3">
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día</span>
-                  <span className="text-xs font-semibold text-neutral-300">
-                    {routine.find((d) => d.id === manageSelectedDay)?.label || 'Día'}
-                  </span>
-                </div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título del día</label>
-                <input
-                  value={manageDayTitle}
-                  onChange={(ev) => setManageDayTitle(ev.target.value)}
-                  placeholder="Ej: Empuje A"
-                  className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
-                />
-              </div>
+            <div>
+              <label className="text-[10px] text-neutral-400 font-semibold uppercase">Descanso</label>
+              <input name="rest" defaultValue={formatRestLabel(editingEx?.rest) || "90s"} className="w-full min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white" />
             </div>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button type="submit" className="flex-1 min-h-[44px] bg-amber-500 text-black font-bold py-2 rounded-lg text-xs uppercase">{editingEx ? "Guardar Cambios" : "Añadir Ejercicio"}</button>
+            <button type="button" onClick={() => { setEditingEx(null); setIsEditMode(false); setExpanded(null); setOpenFromManage(false); }} className="min-h-[44px] bg-neutral-800 text-neutral-300 font-bold px-3 py-2 rounded-lg text-xs">Cancelar</button>
+          </div>
+        </form>
+      </EditExerciseTransition>
+      <ManageDaySheetTransition show={showManageDay} manageDayRef={manageDayRef} onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowManageDay(false); }}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-bold text-white">Gestionar día</h3>
+          <button
+            type="button"
+            onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowManageDay(false); }}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-neutral-800 p-2 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+            aria-label="Cerrar"
+          >
+            <X size={18} />
+          </button>
+        </div>
 
-              <div className="mt-4 space-y-2">
-                <button
-                  onClick={async () => {
-                    if (!manageSelectedDay) return;
-                    if (session && session.user) {
-                      try {
-                        await supabase.from('dias_usuario').upsert({ user_id: session.user.id, day_id: manageSelectedDay, title: manageDayTitle }, { onConflict: ['user_id','day_id'] });
-                      } catch (e) {
-                        console.warn('No se pudo guardar título de día', e);
-                        setErrorMsg('No se pudo guardar título en la nube.');
-                      }
-                    }
-                    setDayTitles(prev => ({ ...prev, [manageSelectedDay]: manageDayTitle }));
-                    setRoutine(prev => prev.map(d => d.id === manageSelectedDay ? { ...d, sub: manageDayTitle } : d));
-                    setShowManageDay(false);
-                    setOpenFromManage(false);
-                  }}
-                className="w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold uppercase text-black"
-              >
-                Guardar título
-              </button>
-
-              <div className="space-y-2">
-                <button
-                  onClick={async () => {
-                      if (!manageSelectedDay) return;
-                      await removeDay(manageSelectedDay);
-                      setShowManageDay(false);
-                      setOpenFromManage(false);
-                    }}
-                  className="w-full min-h-[44px] rounded-xl bg-red-700 px-3 py-2 text-xs font-bold text-white"
-                >
-                  Eliminar día
-                </button>
-              </div>
+        <div className="mt-4 space-y-3">
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día</span>
+              <span className="text-xs font-semibold text-neutral-300">
+                {routine.find((d) => d.id === manageSelectedDay)?.label || 'Día'}
+              </span>
             </div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Título del día</label>
+            <input
+              value={manageDayTitle}
+              onChange={(ev) => setManageDayTitle(ev.target.value)}
+              placeholder="Ej: Empuje A"
+              className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+            />
           </div>
         </div>
-      )}
 
-      {showCreateDaySheet && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              suppressClickAfterModalCloseRef.current = true;
-              setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
-              setShowCreateDaySheet(false);
-            }
-          }}
-        >
-          <div ref={createDayRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-white">Crear día</h3>
-              <button
-                type="button"
-                onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowCreateDaySheet(false); }}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
-                aria-label="Cerrar"
-              >
-                <X size={18} className="shrink-0 leading-none" />
-              </button>
-            </div>
+        <div className="mt-4 space-y-2">
+          <button
+            onClick={async () => {
+              if (!manageSelectedDay) return;
+              if (session && session.user) {
+                try {
+                  await supabase.from('dias_usuario').upsert({ user_id: session.user.id, day_id: manageSelectedDay, title: manageDayTitle }, { onConflict: ['user_id','day_id'] });
+                } catch (e) {
+                  console.warn('No se pudo guardar título de día', e);
+                  setErrorMsg('No se pudo guardar título en la nube.');
+                }
+              }
+              setDayTitles(prev => ({ ...prev, [manageSelectedDay]: manageDayTitle }));
+              setRoutine(prev => prev.map(d => d.id === manageSelectedDay ? { ...d, sub: manageDayTitle } : d));
+              setShowManageDay(false);
+              setOpenFromManage(false);
+            }}
+            className="w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold uppercase text-black"
+          >
+            Guardar título
+          </button>
+
+          <div className="space-y-2">
+            <button
+              onClick={async () => {
+                if (!manageSelectedDay) return;
+                await removeDay(manageSelectedDay);
+                setShowManageDay(false);
+                setOpenFromManage(false);
+              }}
+              className="w-full min-h-[44px] rounded-xl bg-red-700 px-3 py-2 text-xs font-bold text-white"
+            >
+              Eliminar día
+            </button>
+          </div>
+        </div>
+      </ManageDaySheetTransition>
+
+      <CreateDaySheetTransition show={Boolean(showCreateDaySheet)} createDayRef={createDayRef} onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowCreateDaySheet(false); }}>
+        {/* inner content copied from previous markup */}
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-bold text-white">Crear día</h3>
+          <button
+            type="button"
+            onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowCreateDaySheet(false); }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+            aria-label="Cerrar"
+          >
+            <X size={18} className="shrink-0 leading-none" />
+          </button>
+        </div>
             <form onSubmit={handleCreateDay} className="mt-4 space-y-3">
               <div>
                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Día de la semana</label>
@@ -2763,9 +2975,7 @@ export default function RutinaTracker() {
                 <button type="submit" className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black">Guardar</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </CreateDaySheetTransition>
 
       <div
         className="px-4 flex flex-col gap-3 mt-2"
@@ -2816,7 +3026,7 @@ export default function RutinaTracker() {
                     borderLeftColor: plate.hex,
                     borderLeftWidth: 3,
                     opacity: isDragging ? 0.72 : 1,
-                    transition: 'transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
+                    transition: 'box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
                     touchAction: 'manipulation',
                     ...transformStyle,
                   }}
@@ -2876,10 +3086,11 @@ export default function RutinaTracker() {
                       <button
                         type="button"
                         style={{ pointerEvents: 'auto' }}
+                        onClick={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => startTimerButtonLongPress(e, ex)}
                         onMouseMove={handleTimerPointerMove}
-                        onMouseUp={() => handleTimerPointerUp(ex)}
+                        onMouseUp={(e) => { e.stopPropagation(); handleTimerPointerUp(ex); }}
                         onMouseLeave={() => {
                           endTimerButtonLongPress();
                           timerPointerStartRef.current = null;
@@ -2887,7 +3098,7 @@ export default function RutinaTracker() {
                         }}
                         onTouchStart={(e) => startTimerButtonLongPress(e, ex)}
                         onTouchMove={handleTimerPointerMove}
-                        onTouchEnd={() => handleTimerPointerUp(ex)}
+                        onTouchEnd={(e) => { e.stopPropagation(); handleTimerPointerUp(ex); }}
                         onContextMenu={(e) => { e.preventDefault(); timerSuppressClickRef.current = true; setTimerConfigTemp(loadRestConfig(ex.id, ex.name)); setTimerConfigOpen(ex.id); }}
                         className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
                         title="Temporizador descanso"
@@ -3006,91 +3217,102 @@ export default function RutinaTracker() {
                     </div>
                   )}
 
-                  {isOpen && !isEditMode && (
-                    <div className="px-4 pb-4 border-t border-neutral-800 pt-3">
-                      {performanceAlert && expanded === ex.id && (
-                        <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
-                      )}
-                      {todaySets.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {todaySets.map((s, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
+                  <div
+                    ref={(node) => { if (node) expandContentRefs.current[ex.id] = node; else delete expandContentRefs.current[ex.id]; }}
+                    style={{
+                      maxHeight: isOpen ? (expandedHeights[ex.id] ? `${expandedHeights[ex.id]}px` : 'auto') : '0px',
+                      opacity: isOpen ? 1 : 0,
+                      overflow: 'hidden',
+                      transition: 'max-height 300ms cubic-bezier(0.34,1.56,0.64,1), opacity 300ms cubic-bezier(0.34,1.56,0.64,1)',
+                    }}
+                    className="px-4 pb-4 border-t border-neutral-800 pt-3"
+                  >
+                    {!isEditMode && (
+                      <>
+                        {performanceAlert && expanded === ex.id && (
+                          <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
+                        )}
+                        {todaySets.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {todaySets.map((s, i) => (
+                              <div
+                                key={i}
+                                className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
+                              >
+                                <Check size={12} style={{ color: plate.hex }} />
+                                serie {i + 1}: {s.weight}kg × {s.reps}
+                              </div>
+                            ))}
+                            <button
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={() => removeLastSet(ex.id)}
+                              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
                             >
-                              <Check size={12} style={{ color: plate.hex }} />
-                              serie {i + 1}: {s.weight}kg × {s.reps}
-                            </div>
-                          ))}
+                              <Trash2 size={12} /> última
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div className="flex-1 min-w-0 w-full sm:w-auto">
+                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={draft.weight}
+                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              placeholder="0"
+                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0 w-full sm:w-auto">
+                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={draft.reps}
+                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              placeholder="0"
+                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                            />
+                          </div>
+                          <div className="w-full sm:w-[88px]">
+                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={draft.rir || ""}
+                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              placeholder="RIR"
+                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
+                            />
+                          </div>
+                          <div className="w-full sm:w-[160px]">
+                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
+                            <input
+                              type="text"
+                              value={draft.notes || ""}
+                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              placeholder="Nota rápida"
+                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
+                            />
+                          </div>
                           <button
                             onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() => removeLastSet(ex.id)}
-                            className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
+                            onClick={() => addSet(ex.id)}
+                            className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
+                            style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
                           >
-                            <Trash2 size={12} /> última
+                            <Plus size={18} strokeWidth={3} />
                           </button>
                         </div>
-                      )}
-
-                      <div className="flex flex-wrap items-end gap-2">
-                        <div className="flex-1 min-w-0 w-full sm:w-auto">
-                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            value={draft.weight}
-                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            placeholder="0"
-                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0 w-full sm:w-auto">
-                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={draft.reps}
-                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            placeholder="0"
-                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
-                          />
-                        </div>
-                        <div className="w-full sm:w-[88px]">
-                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={draft.rir || ""}
-                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            placeholder="RIR"
-                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
-                          />
-                        </div>
-                        <div className="w-full sm:w-[160px]">
-                          <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
-                          <input
-                            type="text"
-                            value={draft.notes || ""}
-                            onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            placeholder="Nota rápida"
-                            className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
-                          />
-                        </div>
-                        <button
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => addSet(ex.id)}
-                          className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
-                          style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
-                        >
-                          <Plus size={18} strokeWidth={3} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                      </>
+                    )}
+                  </div>
                 </div>
                   )}
                 </SortableItem>
@@ -3223,39 +3445,32 @@ export default function RutinaTracker() {
         </div>
       )}
     </div>
-      {timerConfirmExercise && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
-          onPointerDown={(e) => { if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setTimerConfirmExercise(null); suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); } }}
-        >
-          <div ref={timerConfirmRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
-            <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
-            <p className="text-sm text-neutral-300">
-              ¿Querés iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise.name}</span>?
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTimerConfirmExercise(null)}
-                className="flex-1 min-h-[44px] rounded-xl bg-neutral-800 px-3 py-2 text-sm font-bold text-neutral-200"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const ex = timerConfirmExercise;
-                  setTimerConfirmExercise(null);
-                  openTimerForExercise(ex.id, ex.name);
-                }}
-                className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
-              >
-                Iniciar
-              </button>
-            </div>
-          </div>
+      <TimerConfirmTransition show={Boolean(timerConfirmExercise)} timerConfirmRef={timerConfirmRef} onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setTimerConfirmExercise(null); }}>
+        <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
+        <p className="text-sm text-neutral-300">
+          ¿Querés iniciar el temporizador para <span className="font-semibold text-white">{timerConfirmExercise?.name}</span>?
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setTimerConfirmExercise(null)}
+            className="flex-1 min-h-[44px] rounded-xl bg-neutral-800 px-3 py-2 text-sm font-bold text-neutral-200"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const ex = timerConfirmExercise;
+              setTimerConfirmExercise(null);
+              openTimerForExercise(ex.id, ex.name);
+            }}
+            className="flex-1 min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
+          >
+            Iniciar
+          </button>
         </div>
-      )}
+      </TimerConfirmTransition>
       {timerConfigOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div ref={timerConfigRef} className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
@@ -3300,112 +3515,79 @@ export default function RutinaTracker() {
           </div>
         </div>
       )}
-      {showTemplateManager && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); } }}>
-          <div ref={templateManagerRef} className="w-full max-w-md rounded-t-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-white">Mis rutinas</h3>
-              <button
-                type="button"
-                onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); }}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
-                aria-label="Cerrar"
-              >
-                <X size={18} className="shrink-0 leading-none" />
-              </button>
+      <TemplateManagerTransition
+        show={Boolean(showTemplateManager)}
+        templateManagerRef={templateManagerRef}
+        onClose={() => {
+          suppressClickAfterModalCloseRef.current = true;
+          setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+          setShowTemplateManager(false);
+        }}
+      >
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-700" />
+
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-bold text-white">Mis rutinas</h3>
+          <button
+            type="button"
+            onClick={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowTemplateManager(false); }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-800 text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+            aria-label="Cerrar"
+          >
+            <X size={18} className="shrink-0 leading-none" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Guardar rutina actual</div>
+            <div className="flex gap-2">
+              <input
+                value={saveTemplateName}
+                onChange={(e) => setSaveTemplateName(e.target.value)}
+                placeholder="Nombre de la rutina"
+                className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
+              />
+              <select value={saveTemplateSlot} onChange={(e) => setSaveTemplateSlot(Number(e.target.value))} className="min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-2 py-2 text-sm text-white">
+                {TEMPLATE_SLOT_OPTIONS.map((slot) => (<option key={slot} value={slot}>Slot {slot}</option>))}
+              </select>
             </div>
+            <button type="button" onClick={async () => { const ok = await saveTemplate(); if (ok) setShowTemplateManager(false); }} className="mt-3 w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black">Guardar</button>
+          </div>
 
-            <div className="mt-4 space-y-3">
-              <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Guardar rutina actual</div>
-                <div className="flex gap-2">
-                  <input
-                    value={saveTemplateName}
-                    onChange={(e) => setSaveTemplateName(e.target.value)}
-                    placeholder="Nombre de la rutina"
-                    className="w-full min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-3 py-2 text-sm text-white"
-                  />
-                  <select
-                    value={saveTemplateSlot}
-                    onChange={(e) => setSaveTemplateSlot(Number(e.target.value))}
-                    className="min-h-[44px] rounded-xl border border-neutral-700 bg-[#26282D] px-2 py-2 text-sm text-white"
-                  >
-                    {TEMPLATE_SLOT_OPTIONS.map((slot) => (
-                      <option key={slot} value={slot}>Slot {slot}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await saveTemplate();
-                    if (ok) setShowTemplateManager(false);
-                  }}
-                  className="mt-3 w-full min-h-[44px] rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-black"
-                >
-                  Guardar
-                </button>
-              </div>
-
-              <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Plantillas guardadas</div>
-                {templates.length === 0 ? (
-                  <div className="text-sm text-neutral-400">Todavía no tenés plantillas guardadas.</div>
-                ) : (
-                  <div className="space-y-2">
-                    {templates.map((template) => (
-                      <div key={template.id} className="rounded-lg border border-neutral-700 bg-[#1A1C1F] p-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold text-white">{template.name || 'Rutina'}</div>
-                            <div className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Slot {template.slot_number}</div>
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleLoadTemplate(template)}
-                              className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200"
-                            >
-                              Cargar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const nextName = window.prompt('Renombrar plantilla', template.name || 'Rutina');
-                                if (nextName === null) return;
-                                const ok = await renameTemplate(template.id, nextName);
-                                if (ok) setShowTemplateManager(false);
-                              }}
-                              className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200"
-                            >
-                              Ren.
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (window.confirm('¿Borrar esta plantilla?')) {
-                                  const ok = await deleteTemplate(template.id);
-                                  if (ok) setShowTemplateManager(false);
-                                }
-                              }}
-                              className="min-h-[36px] rounded-lg bg-red-900/35 px-2 text-xs font-semibold text-red-200"
-                            >
-                              Borrar
-                            </button>
-                          </div>
-                        </div>
+          <div className="rounded-xl border border-neutral-800 bg-[#131517] p-3">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Plantillas guardadas</div>
+            {templates.length === 0 ? (
+              <div className="text-sm text-neutral-400">Todavía no tenés plantillas guardadas.</div>
+            ) : (
+              <div className="space-y-2">
+                {templates.map((template) => (
+                  <div key={template.id} className="rounded-lg border border-neutral-700 bg-[#1A1C1F] p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-white">{template.name || 'Rutina'}</div>
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">Slot {template.slot_number}</div>
                       </div>
-                    ))}
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => handleLoadTemplate(template)} className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200">Cargar</button>
+                        <button type="button" onClick={async () => { const nextName = window.prompt('Renombrar plantilla', template.name || 'Rutina'); if (nextName === null) return; const ok = await renameTemplate(template.id, nextName); if (ok) setShowTemplateManager(false); }} className="min-h-[36px] rounded-lg bg-neutral-800 px-2 text-xs font-semibold text-neutral-200">Ren.</button>
+                        <button type="button" onClick={async () => { if (window.confirm('¿Borrar esta plantilla?')) { const ok = await deleteTemplate(template.id); if (ok) setShowTemplateManager(false); } }} className="min-h-[36px] rounded-lg bg-red-900/35 px-2 text-xs font-semibold text-red-200">Borrar</button>
+                      </div>
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
-      )}
-      {showProfile && session?.user && <ProfileModal onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowProfile(false); }} user={session.user} onSaved={(n)=>setProfileName(n)} />}
-      {showAnalytics && session?.user && <Analytics onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowAnalytics(false); }} user={session.user} />}
+      </TemplateManagerTransition>
+      <ProfileModalTransition
+        show={Boolean(showProfile && session?.user)}
+        user={session?.user}
+        onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowProfile(false); }}
+        onSaved={(n) => setProfileName(n)}
+      />
+      <AnalyticsTransition show={Boolean(showAnalytics && session?.user)} user={session?.user} onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setShowAnalytics(false); }} />
       {isMainMenu && <ChatWidget />}
     </>
   );

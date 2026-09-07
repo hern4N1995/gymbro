@@ -5,7 +5,7 @@ import InfoModal from "./InfoModal";
 import { PrimaryButton, SecondaryButton } from "./Button";
 import useClickOutside from "../hooks/useClickOutside";
 
-export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }) {
+export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates, isVisible = true }) {
   const [name, setName] = useState('');
   const [weight, setWeight] = useState(75);
   const [height, setHeight] = useState(175);
@@ -91,10 +91,21 @@ export default function ProfileModal({ onClose, user, onSaved, onOpenTemplates }
     }
   };
 
+  const D = 300; // transition duration ms
+  const easing = 'cubic-bezier(0.34,1.56,0.64,1)';
+
   return (
-    <div className="fixed inset-0 z-50 p-0 sm:p-4">
-      <div className="fixed inset-0 bg-black/60" />
-      <div ref={containerRef} className="relative mx-auto bg-[#111214] border border-neutral-800 rounded-2xl w-full h-full sm:h-auto sm:max-w-md overflow-auto">
+    <div className="fixed inset-0 z-50 p-0 sm:p-4" style={{ pointerEvents: isVisible ? 'auto' : 'none' }}>
+      <div className="fixed inset-0 bg-black/60" style={{ transition: `opacity ${D}ms ${easing}`, opacity: isVisible ? 1 : 0 }} />
+      <div
+        ref={containerRef}
+        className="relative mx-auto bg-[#111214] border border-neutral-800 rounded-2xl w-full h-full sm:h-auto sm:max-w-md overflow-auto"
+        style={{
+          transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+          transition: `transform ${D}ms ${easing}, opacity ${D}ms ${easing}`,
+          opacity: isVisible ? 1 : 0,
+        }}
+      >
         <div className="px-4 py-3.5 border-b border-neutral-800 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h3 className="font-bold text-sm text-neutral-100">Perfil</h3>
