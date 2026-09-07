@@ -1,22 +1,6 @@
 import React, { useState, useRef } from "react";
+import { Dumbbell } from "lucide-react";
 import supabase from "../../supabaseClient";
-
-function DumbbellIcon({ className = "h-8 w-8" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M2 9.5h2.5v5H2zM19.5 9.5H22v5h-2.5zM5.5 7.5h3v9h-3zM15.5 7.5h3v9h-3zM8.5 12h7" />
-    </svg>
-  );
-}
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -101,10 +85,9 @@ export default function ChatWidget() {
         <button
           aria-label="Abrir chat"
           onClick={() => setOpen(true)}
-          style={{ transform: "rotate(-35deg)" }}
-          className="fixed right-4 bottom-10 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/70 bg-[#111214]/95 text-amber-400 shadow-[0_10px_30px_rgba(245,158,11,0.25)] backdrop-blur-sm transition duration-200 hover:border-amber-400 hover:bg-[#171A1D] hover:text-amber-300"
+          className="fixed right-4 bottom-10 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/70 bg-[#111214]/95 text-amber-400 shadow-[0_1px_15px_rgba(245,158,11,0.28),0_0_22px_rgba(245,158,11,0.18)] backdrop-blur-sm transition duration-200 hover:border-amber-400 hover:bg-[#171A1D] hover:text-amber-300"
         >
-          <DumbbellIcon className="h-6 w-6" />
+          <Dumbbell size={22} strokeWidth={2.2} className="-rotate-[0deg]" />
         </button>
       )}
 
@@ -120,7 +103,7 @@ export default function ChatWidget() {
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/50 bg-amber-500/10 text-amber-300">
-                  <DumbbellIcon className="h-5 w-5" />
+                  <Dumbbell size={18} strokeWidth={2.2} className="-rotate-[0deg]" />
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.18em] text-amber-300">GymBro</p>

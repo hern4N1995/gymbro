@@ -372,7 +372,18 @@ const PortfolioFooter = () => (
       className="inline-block text-[11px] text-neutral-500 transition-opacity hover:opacity-100"
       style={{ fontFamily: '"Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif' }}
     >
-      desarrollado por&nbsp;&nbsp;<span className="font-bold" style={{ color: '#b45e30', fontFamily: '"Exo 2", "Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif', fontStyle: 'italic' }}>hern4N</span>
+      desarrollado por&nbsp;&nbsp;<span
+        className="font-bold"
+        style={{
+          color: '#fbbf24',
+          fontFamily: '"Exo 2", "Plus Jakarta Sans", "Avenir Next", "Segoe UI", sans-serif',
+          fontStyle: 'italic',
+          textShadow: '0 0 1px rgba(251, 191, 36, 0.75), 0 0 20px rgba(251, 191, 36, 0.35)',
+          filter: 'drop-shadow(0 0 1px rgba(251, 191, 36, 0.65))',
+        }}
+      >
+        hern4N
+      </span>
     </a>
   </div>
 );
@@ -471,7 +482,7 @@ const DEMO_DAY_OPTIONS_ID = 'demo-day-options';
 const onboardingSteps = [
   {
     title: '1. Abrí las opciones',
-    text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas o cerrar sesión.',
+    text: 'Usá el engranaje para entrar a tu perfil, ver estadísticas, guardar tu rutina o cerrar sesión.',
     accent: 'gear',
     targetId: 'radial-menu-container',
   },
@@ -483,13 +494,13 @@ const onboardingSteps = [
   },
   {
     title: '3. Mantén presionado',
-    text: 'Presioná y mantené un día o un ejercicio para ver acciones como editar, borrar o agregar ejercicos.',
+    text: 'Presioná y mantené sobre un día para ver acciones como editar, agregar ejercicos o borrar.',
     accent: 'long-press',
     targetId: DEMO_DAY_OPTIONS_ID,
   },
   {
     title: '4. Empezá a entrenar',
-    text: 'Agregá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
+    text: 'Modificá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
     accent: 'start',
     targetId: 'demo-exercise-row',
   },
