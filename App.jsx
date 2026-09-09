@@ -59,7 +59,6 @@ function ProfileModalTransition({ show, user, onClose, onSaved }) {
         t = setTimeout(() => setVisible(true), 20);
       }
     } else if (mounted) {
-      try { console.trace('[ProfileModalTransition] setVisible(false) via hide path', { show, mounted, visible, timestamp: Date.now() }); } catch (e) {}
       setVisible(false);
       t = setTimeout(() => setMounted(false), PROFILE_TRANS_DUR + 20);
     }
@@ -513,6 +512,8 @@ export default function RutinaTracker() {
   const [expanded, setExpanded] = useState(null);
   const [expandedHeights, setExpandedHeights] = useState({});
   const [showHistoryModal, setShowHistoryModal] = useState(null);
+  const [exerciseToDelete, setExerciseToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingEx, setEditingEx] = useState(null);
   const [showManageDay, setShowManageDay] = useState(false);
@@ -2201,8 +2202,7 @@ export default function RutinaTracker() {
   };
 
   const handleDeleteExercise = async (exId) => {
-    const ok = window.confirm("¿Querés eliminar este ejercicio?");
-    if (!ok) return;
+    // Confirmation handled by UI modal before calling this function.
     
     if (session && session.user) {
       try {
@@ -2401,7 +2401,6 @@ export default function RutinaTracker() {
     }
     try {
       const res = await supabase.auth.signUp({ email, password });
-      console.log('supabase.signUp response', res);
       if (res.error) {
         setErrorMsg(translateAuthErrorMessage(res.error.message || 'Error al registrarse'));
         return;
@@ -3195,7 +3194,8 @@ export default function RutinaTracker() {
                             onTouchStart={(event) => event.stopPropagation()}
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleDeleteExercise(ex.id);
+                              setExerciseToDelete(ex.id);
+                              setShowDeleteConfirm(true);
                               setExerciseMenuOpen(null);
                             }}
                             className="absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/40 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
@@ -3456,6 +3456,30 @@ export default function RutinaTracker() {
         </div>
       )}
     </div>
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowDeleteConfirm(false);
+              setExerciseToDelete(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#1B1D21] p-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-white">Eliminar ejercicio</div>
+              <button type="button" onClick={() => { setShowDeleteConfirm(false); setExerciseToDelete(null); }} className="min-h-[36px] min-w-[36px] rounded-full bg-neutral-800 inline-flex items-center justify-center text-neutral-300"> <X size={18} /></button>
+            </div>
+            <p className="text-sm text-neutral-300">¿Querés eliminar este ejercicio? La plantilla se eliminará — las marcas históricas se conservarán en la base de datos. Si preferís, podés cancelar y después vincular o fusionar historiales.</p>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => { setShowDeleteConfirm(false); setExerciseToDelete(null); }} className="flex-1 min-h-[44px] rounded-xl bg-neutral-800 px-3 py-2 text-sm font-bold text-neutral-200">Cancelar</button>
+              <button onClick={async () => { if (exerciseToDelete) await handleDeleteExercise(exerciseToDelete); setShowDeleteConfirm(false); setExerciseToDelete(null); }} className="flex-1 min-h-[44px] rounded-xl bg-red-700 px-3 py-2 text-sm font-bold text-white">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <TimerConfirmTransition show={Boolean(timerConfirmExercise)} timerConfirmRef={timerConfirmRef} onClose={() => { suppressClickAfterModalCloseRef.current = true; setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350); setTimerConfirmExercise(null); }}>
         <div className="mb-3 text-sm font-bold text-white">Iniciar descanso</div>
         <p className="text-sm text-neutral-300">
