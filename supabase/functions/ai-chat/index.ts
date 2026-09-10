@@ -122,7 +122,7 @@ function buildRecentSummary(dayTitles: any[] = [], routineEntries: any[] = [], l
       })
       .join(" | ");
 
-    console.error("ai-chat debug recentSummary exerciseCount", { userId, uniqueExercises: byExercise.size });
+    console.error("ai-chat debug recentSummary exerciseCount", { uniqueExercises: byExercise.size });
     parts.push(`Últimos registros (últimas 2 semanas): ${recentList}`);
   } else {
     parts.push("Últimos registros (últimas 2 semanas): no hay historial reciente registrado.");
