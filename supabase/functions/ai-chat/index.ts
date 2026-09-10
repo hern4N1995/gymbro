@@ -140,6 +140,7 @@ serve(async (req) => {
     if (authRes.status !== 200) return respondJSON({ error: "Invalid or expired session" }, 401);
     const user = JSON.parse(authResText || "null");
     const userId = user?.id;
+    console.error("ai-chat debug JWT userId", { userId, hasUser: !!userId });
     if (!userId) return respondJSON({ error: "User not found in token" }, 401);
 
     // Check daily quota
@@ -156,28 +157,33 @@ serve(async (req) => {
     if (currentCount >= DAILY_LIMIT) return respondJSON({ error: "Daily limit reached" }, 429);
 
     // Fetch real user context from the actual app tables.
-    const [{ data: dayRows }, { data: routineRows }, { data: recentLogs }] = await Promise.all([
-      supabase
-        .from("dias_usuario")
-        .select("day_id,title")
-        .eq("user_id", userId)
-        .order("day_id", { ascending: true }),
-      supabase
-        .from("rutinas_usuario")
-        .select("id,user_id,exercise_id,exercise_name,muscle_group,rest_seconds,created_at,day_id,name,sets,reps,rir,rest")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("historial")
-        .select("id,user_id,exercise_id,exercise_name,muscle_group,weight,reps,created_at,date,rir,notes")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
+    const { data: dayRows, error: dayError } = await supabase
+      .from("dias_usuario")
+      .select("day_id,title")
+      .eq("user_id", userId)
+      .order("day_id", { ascending: true });
+    console.error("ai-chat debug dias_usuario query", { userId, rowsReturned: dayRows?.length ?? 0, error: dayError ? String(dayError) : null });
+
+    const { data: routineRows, error: routineError } = await supabase
+      .from("rutinas_usuario")
+      .select("id,user_id,exercise_id,exercise_name,muscle_group,rest_seconds,created_at,day_id,name,sets,reps,rir,rest")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    console.error("ai-chat debug rutinas_usuario query", { userId, rowsReturned: routineRows?.length ?? 0, error: routineError ? String(routineError) : null });
+
+    const { data: recentLogs, error: historyError } = await supabase
+      .from("historial")
+      .select("id,user_id,exercise_id,exercise_name,muscle_group,weight,reps,created_at,date,rir,notes")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    console.error("ai-chat debug historial query", { userId, rowsReturned: recentLogs?.length ?? 0, error: historyError ? String(historyError) : null });
 
     const recentSummary = buildRecentSummary(dayRows || [], routineRows || [], recentLogs || []);
+    console.error("ai-chat debug recentSummary", { userId, recentSummary });
 
     const systemText = `${SYSTEM_PROMPT}\nContexto del usuario (resumen):\n${recentSummary}\n\nResponde solo en español.`;
+    console.error("ai-chat debug systemText", { userId, systemText });
     const messages = [
       { author: "system", content: [{ type: "text", text: systemText }] },
       { author: "user", content: [{ type: "text", text: userMessage }] },
