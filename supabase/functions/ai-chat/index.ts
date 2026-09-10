@@ -81,20 +81,51 @@ function buildRecentSummary(dayTitles: any[] = [], routineEntries: any[] = [], l
   }
 
   if (logs && logs.length) {
-    const recentList = logs
-      .slice(0, 15)
-      .map((item) => {
-        const date = item?.date || item?.created_at;
-        const dateLabel = date ? new Date(date).toLocaleDateString("es-AR") : "fecha desconocida";
-        const exercise = item?.exercise_name || item?.exercise_id || "Ejercicio";
-        const weight = item?.weight ?? "?";
-        const reps = item?.reps ?? "?";
-        return `${dateLabel}: ${exercise} — ${weight}kg x ${reps} reps`;
+    const byExercise = new Map<string, any>();
+
+    for (const item of logs) {
+      const key = String(item?.exercise_id || item?.exercise_name || "ejercicio-sin-nombre");
+      const name = item?.exercise_name || item?.exercise_id || "Ejercicio";
+      const dateValue = item?.date || item?.created_at;
+      const weight = Number(item?.weight ?? 0);
+      const reps = Number(item?.reps ?? 0);
+      const lastDate = dateValue ? new Date(dateValue) : new Date(0);
+
+      const current = byExercise.get(key) || {
+        name,
+        lastDate,
+        lastWeight: weight,
+        lastReps: reps,
+        bestWeight: weight,
+        bestReps: reps,
+        rows: 0,
+      };
+
+      const next = {
+        ...current,
+        lastDate: lastDate > current.lastDate ? lastDate : current.lastDate,
+        lastWeight: lastDate >= current.lastDate ? weight : current.lastWeight,
+        lastReps: lastDate >= current.lastDate ? reps : current.lastReps,
+        bestWeight: weight > current.bestWeight ? weight : current.bestWeight,
+        bestReps: weight > current.bestWeight ? reps : current.bestReps,
+        rows: current.rows + 1,
+      };
+
+      byExercise.set(key, next);
+    }
+
+    const recentList = Array.from(byExercise.values())
+      .sort((a, b) => Number(b.lastDate) - Number(a.lastDate))
+      .slice(0, 12)
+      .map((entry) => {
+        const dateLabel = entry.lastDate && !isNaN(Number(entry.lastDate)) ? new Date(entry.lastDate).toLocaleDateString("es-AR") : "fecha desconocida";
+        return `${entry.name}: último ${dateLabel} ${entry.lastWeight || "?"}kg x ${entry.lastReps || "?"} reps; mejor ${entry.bestWeight || "?"}kg x ${entry.bestReps || "?"} reps`;
       })
       .join(" | ");
-    parts.push(`Últimos registros: ${recentList}`);
+
+    parts.push(`Últimos registros (últimas 2 semanas): ${recentList}`);
   } else {
-    parts.push("Últimos registros: no hay historial reciente registrado.");
+    parts.push("Últimos registros (últimas 2 semanas): no hay historial reciente registrado.");
   }
 
   return parts.join("\n");
@@ -171,13 +202,17 @@ serve(async (req) => {
       .order("created_at", { ascending: false });
     console.error("ai-chat debug rutinas_usuario query", { userId, rowsReturned: routineRows?.length ?? 0, error: routineError ? String(routineError) : null });
 
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const twoWeeksAgoDate = twoWeeksAgo.toISOString().slice(0, 10);
+
     const { data: recentLogs, error: historyError } = await supabase
       .from("historial")
       .select("id,user_id,exercise_id,exercise_name,muscle_group,weight,reps,created_at,date,rir,notes")
       .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    console.error("ai-chat debug historial query", { userId, rowsReturned: recentLogs?.length ?? 0, error: historyError ? String(historyError) : null });
+      .gte("date", twoWeeksAgoDate)
+      .order("date", { ascending: false });
+    console.error("ai-chat debug historial query", { userId, startDate: twoWeeksAgoDate, rowsReturned: recentLogs?.length ?? 0, error: historyError ? String(historyError) : null });
 
     const recentSummary = buildRecentSummary(dayRows || [], routineRows || [], recentLogs || []);
     console.error("ai-chat debug recentSummary", { userId, recentSummary });
