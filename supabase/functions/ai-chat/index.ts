@@ -184,58 +184,42 @@ serve(async (req) => {
 
     const systemText = `${SYSTEM_PROMPT}\nContexto del usuario (resumen):\n${recentSummary}\n\nResponde solo en español.`;
     console.error("ai-chat debug systemText", { userId, systemText });
-    const messages = [
-      { author: "system", content: [{ type: "text", text: systemText }] },
-      { author: "user", content: [{ type: "text", text: userMessage }] },
-    ];
 
-    // Call Generative AI API. Use generateMessage for conversational Gemini models,
-    // or generateText for text-bison-style models (avoid 404s when model doesn't support generateMessage).
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            { role: "user", parts: [{ text: userMessage }] },
+          ],
+          systemInstruction: {
+            parts: [{ text: systemText }],
+          },
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 512,
+          },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.error("Gemini API error details:", errText);
+      return respondJSON({ error: "Gemini API error", details: errText }, 502);
+    }
+
+    const geminiJson = await geminiRes.json();
+
     let replyText = "";
-    if (GEMINI_MODEL?.startsWith("text-") || GEMINI_MODEL?.toLowerCase().includes("bison")) {
-      // text-bison or similar: use generateText with a single prompt combining system and user
-      const promptText = `${SYSTEM_PROMPT}\nContexto del usuario (resumen):\n${recentSummary}\n\nUsuario: ${userMessage}`;
-      const textRes = await fetch(`https://generativeai.googleapis.com/v1/models/${GEMINI_MODEL}:generateText`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt: { text: promptText }, temperature: 0.2, maxOutputTokens: 512 }),
-      });
-
-      if (!textRes.ok) {
-        const errText = await textRes.text();
-        return respondJSON({ error: "Gemini API error", details: errText }, 502);
-      }
-
-      const textJson = await textRes.json().catch(() => null);
-      // Try common shapes
-      replyText = textJson?.candidates?.[0]?.text || textJson?.output?.[0]?.content?.[0]?.text || textJson?.output?.[0]?.text || JSON.stringify(textJson);
-    } else {
-      const geminiRes = await fetch(`https://generativeai.googleapis.com/v1/models/${GEMINI_MODEL}:generateMessage`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ messages, temperature: 0.2, maxOutputTokens: 512 }),
-      });
-
-      if (!geminiRes.ok) {
-        const errText = await geminiRes.text();
-        return respondJSON({ error: "Gemini API error", details: errText }, 502);
-      }
-
-      const geminiJson = await geminiRes.json();
-      try {
-        replyText =
-          geminiJson?.candidates?.[0]?.content?.map((c: any) => c.text || "").join("") ||
-          geminiJson?.output?.[0]?.content?.[0]?.text ||
-          JSON.stringify(geminiJson);
-      } catch {
-        replyText = JSON.stringify(geminiJson);
-      }
+    try {
+      replyText =
+        geminiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") ||
+        "No se pudo generar una respuesta.";
+    } catch {
+      replyText = "No se pudo generar una respuesta.";
     }
 
     // Increment quota (upsert behavior)
