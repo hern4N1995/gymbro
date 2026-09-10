@@ -27,18 +27,76 @@ No realices diagnósticos médicos. Si la consulta parece relacionada con condic
 Mantén respuestas claras, concisas y orientadas a la rutina y los objetivos del usuario.
 `;
 
-function buildRecentSummary(routine: any, logs: any[]) {
+function buildRecentSummary(dayTitles: any[] = [], routineEntries: any[] = [], logs: any[] = []) {
   const parts: string[] = [];
-  if (routine) {
-    parts.push(`Rutina activa: ${routine.name || "(sin nombre)"}`);
-    if (routine.notes) parts.push(`Notas: ${routine.notes}`);
+
+  const dayMap = new Map<string, string>();
+  for (const day of dayTitles || []) {
+    if (day?.day_id) {
+      dayMap.set(String(day.day_id), day.title || "Día sin título");
+    }
   }
-  if (logs && logs.length) {
-    parts.push(`Último entrenamiento: ${new Date(logs[0].created_at).toLocaleDateString()} — ${logs[0].summary || logs[0].type || "log"}`);
-    parts.push(`Últimos ${logs.length} entrenos: ${logs.map((l) => `${new Date(l.created_at).toLocaleDateString()}: ${l.summary || l.type || "log"}`).join(" | ")}`);
+
+  if (dayTitles && dayTitles.length) {
+    const daySummary = dayTitles
+      .map((day) => `${day.title || "Día sin título"} (${day.day_id || "sin-id"})`)
+      .join(" | ");
+    parts.push(`Días configurados: ${daySummary}`);
   } else {
-    parts.push("No hay historial reciente registrado.");
+    parts.push("Días configurados: ninguno.");
   }
+
+  if (routineEntries && routineEntries.length) {
+    const byDay = new Map<string, any[]>();
+    for (const entry of routineEntries) {
+      const dayId = entry?.day_id || "sin-dia";
+      const list = byDay.get(dayId) || [];
+      list.push(entry);
+      byDay.set(dayId, list);
+    }
+
+    const dayBlocks: string[] = [];
+    for (const [dayId, entries] of byDay.entries()) {
+      const title = dayMap.get(String(dayId)) || "Día sin título";
+      const exerciseList = entries
+        .map((entry) => {
+          const name = entry?.exercise_name || entry?.name || "Ejercicio sin nombre";
+          const sets = entry?.sets ?? "?";
+          const reps = entry?.reps ?? "?";
+          const rir = entry?.rir ?? "?";
+          const rest = entry?.rest ?? entry?.rest_seconds ?? "?";
+          return `${name} (${sets}x${reps}, RIR ${rir}, descanso ${rest}s)`;
+        })
+        .join("; ");
+      dayBlocks.push(`${title}: ${exerciseList}`);
+    }
+
+    if (dayBlocks.length) {
+      parts.push(`Ejercicios por día: ${dayBlocks.join(" | ")}`);
+    } else {
+      parts.push("Ejercicios por día: no hay ejercicios registrados en rutinas_usuario.");
+    }
+  } else {
+    parts.push("Ejercicios por día: no hay ejercicios registrados en rutinas_usuario.");
+  }
+
+  if (logs && logs.length) {
+    const recentList = logs
+      .slice(0, 15)
+      .map((item) => {
+        const date = item?.date || item?.created_at;
+        const dateLabel = date ? new Date(date).toLocaleDateString("es-AR") : "fecha desconocida";
+        const exercise = item?.exercise_name || item?.exercise_id || "Ejercicio";
+        const weight = item?.weight ?? "?";
+        const reps = item?.reps ?? "?";
+        return `${dateLabel}: ${exercise} — ${weight}kg x ${reps} reps`;
+      })
+      .join(" | ");
+    parts.push(`Últimos registros: ${recentList}`);
+  } else {
+    parts.push("Últimos registros: no hay historial reciente registrado.");
+  }
+
   return parts.join("\n");
 }
 
@@ -97,23 +155,27 @@ serve(async (req) => {
     const currentCount = quotaRow?.count ?? 0;
     if (currentCount >= DAILY_LIMIT) return respondJSON({ error: "Daily limit reached" }, 429);
 
-    // Fetch user's active routine and recent logs (adapt schema if needed)
-    const { data: routine } = await supabase
-      .from("routines")
-      .select("id,name,notes,exercises")
-      .eq("user_id", userId)
-      .eq("active", true)
-      .limit(1)
-      .maybeSingle();
+    // Fetch real user context from the actual app tables.
+    const [{ data: dayRows }, { data: routineRows }, { data: recentLogs }] = await Promise.all([
+      supabase
+        .from("dias_usuario")
+        .select("day_id,title")
+        .eq("user_id", userId)
+        .order("day_id", { ascending: true }),
+      supabase
+        .from("rutinas_usuario")
+        .select("id,user_id,exercise_id,exercise_name,muscle_group,rest_seconds,created_at,day_id,name,sets,reps,rir,rest")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("historial")
+        .select("id,user_id,exercise_id,exercise_name,muscle_group,weight,reps,created_at,date,rir,notes")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
 
-    const { data: logs } = await supabase
-      .from("workout_logs")
-      .select("id,created_at,summary,type")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    const recentSummary = buildRecentSummary(routine, logs || []);
+    const recentSummary = buildRecentSummary(dayRows || [], routineRows || [], recentLogs || []);
 
     const systemText = `${SYSTEM_PROMPT}\nContexto del usuario (resumen):\n${recentSummary}\n\nResponde solo en español.`;
     const messages = [
