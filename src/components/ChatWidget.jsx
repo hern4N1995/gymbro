@@ -1,4 +1,6 @@
 import React, { useState, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import { Dumbbell } from "lucide-react";
 import supabase from "../../supabaseClient";
 
@@ -119,8 +121,33 @@ export default function ChatWidget() {
               {messages.length === 0 && <p className="text-sm text-neutral-400">Escribe algo para comenzar.</p>}
               {messages.map((m, i) => (
                 <div key={i} className={`my-2 max-w-[92%] ${m.role === "user" ? "ml-auto text-right" : "mr-auto text-left"}`}>
-                  <div className={`${m.role === "user" ? "bg-amber-500 text-black" : "border border-neutral-700 bg-[#1B1D21] text-neutral-100"} inline-block rounded-2xl px-3 py-2 text-sm leading-6 shadow-sm`}>
-                    {m.text}
+                  <div className={`${m.role === "user" ? "bg-amber-500 text-black" : "border border-neutral-700 bg-[#1B1D21] text-neutral-100"} inline-block max-w-full rounded-2xl px-3 py-2 text-sm leading-6 shadow-sm`}>
+                    {m.role === "assistant" ? (
+                      <div className="chat-markdown max-w-none break-words text-left text-sm text-neutral-100">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkBreaks]}
+                          components={{
+                            p: ({ children }) => <p className="mb-2 last:mb-0 leading-6 text-neutral-100">{children}</p>,
+                            strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
+                            h1: ({ children }) => <h1 className="mb-2 mt-0 text-base font-bold text-white">{children}</h1>,
+                            h2: ({ children }) => <h2 className="mb-2 mt-0 text-sm font-bold text-white">{children}</h2>,
+                            h3: ({ children }) => <h3 className="mb-2 mt-0 text-sm font-semibold text-white">{children}</h3>,
+                            ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 text-neutral-100">{children}</ul>,
+                            ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 text-neutral-100">{children}</ol>,
+                            li: ({ children }) => <li className="pl-1 leading-6">{children}</li>,
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noreferrer" className="text-amber-300 underline underline-offset-2">{children}</a>
+                            ),
+                            code: ({ children }) => <code className="rounded bg-neutral-800 px-1 py-0.5 text-amber-200">{children}</code>,
+                            pre: ({ children }) => <pre className="mb-2 overflow-x-auto rounded-md bg-neutral-900 p-2 text-xs text-amber-100">{children}</pre>,
+                          }}
+                        >
+                          {m.text}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <span className="block whitespace-pre-wrap break-words">{m.text}</span>
+                    )}
                   </div>
                 </div>
               ))}
