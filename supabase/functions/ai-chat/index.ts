@@ -116,13 +116,13 @@ function buildRecentSummary(dayTitles: any[] = [], routineEntries: any[] = [], l
 
     const recentList = Array.from(byExercise.values())
       .sort((a, b) => Number(b.lastDate) - Number(a.lastDate))
-      .slice(0, 12)
       .map((entry) => {
         const dateLabel = entry.lastDate && !isNaN(Number(entry.lastDate)) ? new Date(entry.lastDate).toLocaleDateString("es-AR") : "fecha desconocida";
         return `${entry.name}: último ${dateLabel} ${entry.lastWeight || "?"}kg x ${entry.lastReps || "?"} reps; mejor ${entry.bestWeight || "?"}kg x ${entry.bestReps || "?"} reps`;
       })
       .join(" | ");
 
+    console.error("ai-chat debug recentSummary exerciseCount", { userId, uniqueExercises: byExercise.size });
     parts.push(`Últimos registros (últimas 2 semanas): ${recentList}`);
   } else {
     parts.push("Últimos registros (últimas 2 semanas): no hay historial reciente registrado.");
