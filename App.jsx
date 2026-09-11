@@ -493,13 +493,13 @@ const onboardingSteps = [
   },
   {
     title: '3. Mantén presionado',
-    text: 'Presioná y mantené sobre un día para ver acciones como editar, agregar ejercicos o borrar.',
+    text: 'Presioná y mantené sobre un día para ver acciones como editar, agregar ejercicios o borrar.',
     accent: 'long-press',
     targetId: DEMO_DAY_OPTIONS_ID,
   },
   {
     title: '4. Empezá a entrenar',
-    text: 'Modificá ejercicios, carga series y registra tus marcas para llevar el seguimiento.',
+    text: 'Seleccioná un ejercicio y modificalo, carga series y registra tus marcas para llevar el seguimiento.',
     accent: 'start',
     targetId: 'demo-exercise-row',
   },
@@ -3029,6 +3029,10 @@ export default function RutinaTracker() {
                       return;
                     }
                     if (exerciseMenuOpen === ex.id) { setExerciseMenuOpen(null); return; }
+
+                    const interactiveTarget = event.target.closest('input, textarea, select, button, a, label, [role="button"], [data-no-card-toggle]');
+                    if (interactiveTarget) return;
+
                     setExpanded(isOpen ? null : ex.id);
                   }}
                   className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer transition-all"
