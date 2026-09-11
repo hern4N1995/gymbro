@@ -499,7 +499,7 @@ const onboardingSteps = [
   },
   {
     title: '4. Empezá a entrenar',
-    text: 'Seleccioná un ejercicio y modificalo, carga series y registra tus marcas para llevar el seguimiento.',
+    text: 'Presioná sobre un ejercicio, modificalo, carga series y registra tus marcas para llevar el seguimiento.',
     accent: 'start',
     targetId: 'demo-exercise-row',
   },
@@ -2573,7 +2573,7 @@ export default function RutinaTracker() {
         </div>
       </div>
     )}
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight flex flex-col">
+    <div className="w-full overflow-x-hidden bg-[#111214] text-neutral-100 font-sans pb-0 mobile-tight flex flex-col" style={{ height: '100dvh', maxHeight: '100dvh', overflowY: 'hidden' }}>
       {loadingRoutine && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,18,20,0.6)' }}>
           <div className="bg-[#0F1112] border border-neutral-800 rounded-lg p-4">Cargando rutina...</div>
@@ -2988,7 +2988,7 @@ export default function RutinaTracker() {
       </CreateDaySheetTransition>
 
       <div
-        className="px-4 flex flex-col gap-3 mt-2"
+        className="px-4 flex flex-col gap-3 mt-2 flex-1 overflow-hidden"
         style={{
           touchAction: 'pan-y',
           overscrollBehavior: 'contain',
@@ -3000,342 +3000,344 @@ export default function RutinaTracker() {
             <p className="text-sm font-medium text-neutral-300">Este día todavía no tiene ejercicios</p>
           </div>
         ) : (
-          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-            <SortableContext items={safeDay.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-            {safeDay.exercises.map((ex) => {
-              const rowId = (safeDay.isDemo && ex.id === 'demo-press') ? 'demo-exercise-row' : undefined;
-              const isOpen = showOnboarding && onboardingStep === 3 && ex.id === 'demo-press' ? true : expanded === ex.id;
-              const todaySets = getTodaySets(ex.id);
-              const last = getLastSession(ex.id);
-              const draft = drafts[ex.id] || { weight: "", reps: "" };
-              const doneCount = todaySets.length;
-              const targetCount = ex.sets;
-              const isDraggedCard = false;
-              const isDropTarget = false;
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+              <SortableContext items={safeDay.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+              {safeDay.exercises.map((ex) => {
+                const rowId = (safeDay.isDemo && ex.id === 'demo-press') ? 'demo-exercise-row' : undefined;
+                const isOpen = showOnboarding && onboardingStep === 3 && ex.id === 'demo-press' ? true : expanded === ex.id;
+                const todaySets = getTodaySets(ex.id);
+                const last = getLastSession(ex.id);
+                const draft = drafts[ex.id] || { weight: "", reps: "" };
+                const doneCount = todaySets.length;
+                const targetCount = ex.sets;
+                const isDraggedCard = false;
+                const isDropTarget = false;
 
-              
-              return (
-                <SortableItem id={ex.id} key={ex.id}>
-                  {({ attributes, listeners, setNodeRef, transformStyle, isDragging }) => (
-                <div
-                  id={rowId}
-                  data-exercise-card
-                  data-exercise-id={ex.id}
-                  ref={(node) => { setNodeRef(node); if (node) expandedRefs.current[ex.id] = node; else delete expandedRefs.current[ex.id]; }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (suppressClickAfterModalCloseRef.current) {
-                      suppressClickAfterModalCloseRef.current = false;
-                      return;
-                    }
-                    if (exerciseMenuOpen === ex.id) { setExerciseMenuOpen(null); return; }
+                
+                return (
+                  <SortableItem id={ex.id} key={ex.id}>
+                    {({ attributes, listeners, setNodeRef, transformStyle, isDragging }) => (
+                  <div
+                    id={rowId}
+                    data-exercise-card
+                    data-exercise-id={ex.id}
+                    ref={(node) => { setNodeRef(node); if (node) expandedRefs.current[ex.id] = node; else delete expandedRefs.current[ex.id]; }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (suppressClickAfterModalCloseRef.current) {
+                        suppressClickAfterModalCloseRef.current = false;
+                        return;
+                      }
+                      if (exerciseMenuOpen === ex.id) { setExerciseMenuOpen(null); return; }
 
-                    const interactiveTarget = event.target.closest('input, textarea, select, button, a, label, [role="button"], [data-no-card-toggle]');
-                    if (interactiveTarget) return;
+                      const interactiveTarget = event.target.closest('input, textarea, select, button, a, label, [role="button"], [data-no-card-toggle]');
+                      if (interactiveTarget) return;
 
-                    setExpanded(isOpen ? null : ex.id);
-                  }}
-                  className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer transition-all"
-                  style={{
-                    borderLeftColor: plate.hex,
-                    borderLeftWidth: 3,
-                    opacity: isDragging ? 0.72 : 1,
-                    transition: 'box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
-                    touchAction: 'manipulation',
-                    ...transformStyle,
-                  }}
-                >
-                  <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
-                    <div
-                      className="mr-2 flex items-center shrink-0"
-                      role="button"
-                      tabIndex={0}
-                      style={{
-                        WebkitTouchCallout: 'none',
-                        WebkitUserSelect: 'none',
-                        userSelect: 'none',
-                        touchAction: 'none',
-                        pointerEvents: 'auto',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      {...attributes}
-                      {...listeners}
-                      onPointerDown={(e) => {
-                        if (listeners?.onPointerDown) listeners.onPointerDown(e);
-                      }}
-                    >
-                      <GripVertical size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
-                      <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
-                        {ex.sets}×{ex.reps} · <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 text-neutral-400 hover:text-white">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
-                      </div>
-                      <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
-                        {last
-                          ? `Última vez (${displayDate(last.date)}): ${last.sets.map((s) => `${s.weight}kg×${s.reps}`).join(", ")}`
-                          : "Sin registros previos"}
-                      </div>
-                    </div>
-
-                    <div className="exercise-controls flex items-center gap-2 shrink-0" style={{ pointerEvents: 'none' }}>
-                      <span
-                        className="text-[11px] font-bold rounded-full px-2 py-1 tabular-nums cursor-pointer min-h-[32px] flex items-center justify-center"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (exerciseMenuOpen === ex.id) {
-                            setExerciseMenuOpen(null);
-                            return;
-                          }
-                          setExpanded(isOpen ? null : ex.id);
+                      setExpanded(isOpen ? null : ex.id);
+                    }}
+                    className="rounded-2xl bg-[#1B1D21] border border-neutral-800 overflow-hidden w-full cursor-pointer transition-all"
+                    style={{
+                      borderLeftColor: plate.hex,
+                      borderLeftWidth: 3,
+                      opacity: isDragging ? 0.72 : 1,
+                      transition: 'box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out, filter 180ms ease-out',
+                      touchAction: 'manipulation',
+                      ...transformStyle,
+                    }}
+                  >
+                    <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3.5">
+                      <div
+                        className="mr-2 flex items-center shrink-0"
+                        role="button"
+                        tabIndex={0}
+                        style={{
+                          WebkitTouchCallout: 'none',
+                          WebkitUserSelect: 'none',
+                          userSelect: 'none',
+                          touchAction: 'none',
+                          pointerEvents: 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
                         }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        style={{ pointerEvents: 'auto', backgroundColor: doneCount >= targetCount ? "#2E9E5B33" : "#2a2c30", color: doneCount >= targetCount ? "#59D98A" : "#9a9ca1" }}
-                      >
-                        {doneCount}/{targetCount}
-                      </span>
-
-                      <button
-                        type="button"
-                        style={{ pointerEvents: 'auto' }}
-                        onClick={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => startTimerButtonLongPress(e, ex)}
-                        onMouseMove={handleTimerPointerMove}
-                        onMouseUp={(e) => { e.stopPropagation(); handleTimerPointerUp(ex); }}
-                        onMouseLeave={() => {
-                          endTimerButtonLongPress();
-                          timerPointerStartRef.current = null;
-                          timerDragDetectedRef.current = false;
+                        {...attributes}
+                        {...listeners}
+                        onPointerDown={(e) => {
+                          if (listeners?.onPointerDown) listeners.onPointerDown(e);
                         }}
-                        onTouchStart={(e) => startTimerButtonLongPress(e, ex)}
-                        onTouchMove={handleTimerPointerMove}
-                        onTouchEnd={(e) => { e.stopPropagation(); handleTimerPointerUp(ex); }}
-                        onContextMenu={(e) => { e.preventDefault(); timerSuppressClickRef.current = true; setTimerConfigTemp(loadRestConfig(ex.id, ex.name)); setTimerConfigOpen(ex.id); }}
-                        className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
-                        title="Temporizador descanso"
-                        aria-label={`Temporizador descanso para ${ex.name}`}
                       >
-                        <Timer size={16} />
-                      </button>
+                        <GripVertical size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-[15px] leading-snug pr-2 break-words">{ex.name}</div>
+                        <div className="text-neutral-500 text-xs mt-0.5 tabular-nums break-words">
+                          {ex.sets}×{ex.reps} · <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(event) => { event.stopPropagation(); setInfo({ term: 'RIR' }); }} className="font-semibold underline decoration-neutral-500/70 underline-offset-2 decoration-1 text-neutral-400 hover:text-white">RIR</button> {ex.rir} · descanso {formatRestLabel(ex.rest)}
+                        </div>
+                        <div className="text-xs mt-1 tabular-nums flex items-center gap-1 break-words" style={{ color: plate.hex }}>
+                          {last
+                            ? `Última vez (${displayDate(last.date)}): ${last.sets.map((s) => `${s.weight}kg×${s.reps}`).join(", ")}`
+                            : "Sin registros previos"}
+                        </div>
+                      </div>
 
-                      <div className="dropdown-root">
+                      <div className="exercise-controls flex items-center gap-2 shrink-0" style={{ pointerEvents: 'none' }}>
+                        <span
+                          className="text-[11px] font-bold rounded-full px-2 py-1 tabular-nums cursor-pointer min-h-[32px] flex items-center justify-center"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (exerciseMenuOpen === ex.id) {
+                              setExerciseMenuOpen(null);
+                              return;
+                            }
+                            setExpanded(isOpen ? null : ex.id);
+                          }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          style={{ pointerEvents: 'auto', backgroundColor: doneCount >= targetCount ? "#2E9E5B33" : "#2a2c30", color: doneCount >= targetCount ? "#59D98A" : "#9a9ca1" }}
+                        >
+                          {doneCount}/{targetCount}
+                        </span>
+
                         <button
                           type="button"
-                          ref={(node) => {
-                            if (node) exerciseMenuRefs.current[ex.id] = node;
-                            else delete exerciseMenuRefs.current[ex.id];
+                          style={{ pointerEvents: 'auto' }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => startTimerButtonLongPress(e, ex)}
+                          onMouseMove={handleTimerPointerMove}
+                          onMouseUp={(e) => { e.stopPropagation(); handleTimerPointerUp(ex); }}
+                          onMouseLeave={() => {
+                            endTimerButtonLongPress();
+                            timerPointerStartRef.current = null;
+                            timerDragDetectedRef.current = false;
                           }}
+                          onTouchStart={(e) => startTimerButtonLongPress(e, ex)}
+                          onTouchMove={handleTimerPointerMove}
+                          onTouchEnd={(e) => { e.stopPropagation(); handleTimerPointerUp(ex); }}
+                          onContextMenu={(e) => { e.preventDefault(); timerSuppressClickRef.current = true; setTimerConfigTemp(loadRestConfig(ex.id, ex.name)); setTimerConfigOpen(ex.id); }}
+                          className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
+                          title="Temporizador descanso"
+                          aria-label={`Temporizador descanso para ${ex.name}`}
+                        >
+                          <Timer size={16} />
+                        </button>
+
+                        <div className="dropdown-root">
+                          <button
+                            type="button"
+                            ref={(node) => {
+                              if (node) exerciseMenuRefs.current[ex.id] = node;
+                              else delete exerciseMenuRefs.current[ex.id];
+                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onTouchStart={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setExerciseMenuOpen((current) => current === ex.id ? null : ex.id);
+                            }}
+                            className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
+                            style={{ pointerEvents: 'auto' }}
+                            aria-label={`Más opciones para ${ex.name}`}
+                            title="Más opciones"
+                          >
+                            <MoreVertical size={18} />
+                          </button>
+                        </div>
+
+                        <div
+                          ref={exerciseMenuPanelRef}
                           onPointerDown={(e) => e.stopPropagation()}
                           onMouseDown={(event) => event.stopPropagation()}
                           onTouchStart={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setExerciseMenuOpen((current) => current === ex.id ? null : ex.id);
-                          }}
-                          className="min-h-[44px] min-w-[44px] p-2 text-neutral-300 hover:text-white bg-[#26282D] rounded-full flex items-center justify-center"
-                          style={{ pointerEvents: 'auto' }}
-                          aria-label={`Más opciones para ${ex.name}`}
-                          title="Más opciones"
+                          className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                          style={{ width: exerciseMenuOpen === ex.id ? '34px' : '0px', opacity: exerciseMenuOpen === ex.id ? 1 : 0, zIndex: 10, pointerEvents: exerciseMenuOpen === ex.id ? 'auto' : 'none' }}
                         >
-                          <MoreVertical size={18} />
-                        </button>
-                      </div>
-
-                      <div
-                        ref={exerciseMenuPanelRef}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onTouchStart={(event) => event.stopPropagation()}
-                        className="relative z-10 flex items-center justify-center overflow-hidden transition-[width,opacity] duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                        style={{ width: exerciseMenuOpen === ex.id ? '34px' : '0px', opacity: exerciseMenuOpen === ex.id ? 1 : 0, zIndex: 10, pointerEvents: exerciseMenuOpen === ex.id ? 'auto' : 'none' }}
-                      >
-                        <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}>
-                          <button
-                            type="button"
-                            aria-label="Editar ejercicio"
-                            title="Editar ejercicio"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onTouchStart={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setEditingEx(ex);
-                              setOpenFromManage(false);
-                              setIsEditMode(true);
-                              setExerciseMenuOpen(null);
-                            }}
-                            className="absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
-                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Ver historial"
-                            title="Ver historial"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onTouchStart={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setShowHistoryModal(ex.id);
-                              setExerciseMenuOpen(null);
-                            }}
-                            className="absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
-                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(2px) translate(-50%, -50%)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
-                          >
-                            <History size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Eliminar ejercicio"
-                            title="Eliminar ejercicio"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onTouchStart={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setExerciseToDelete(ex.id);
-                              setShowDeleteConfirm(true);
-                              setExerciseMenuOpen(null);
-                            }}
-                            className="absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/40 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
-                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-
-                      
-                    </div>
-                  </div>
-
-                  {showTimer && activeTimerExercise === ex.id && (
-                    <div className="px-3 pb-2">
-                      <RestTimer
-                        exerciseName={ex.name}
-                        seconds={timerSeconds}
-                        vibrate={timerOpts.vibrate}
-                        sound={timerOpts.sound}
-                        inline
-                        onClose={() => {
-                          suppressClickAfterModalCloseRef.current = true;
-                          setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
-                          setShowTimer(false);
-                          setActiveTimerExercise(null);
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  <div
-                    ref={(node) => { if (node) expandContentRefs.current[ex.id] = node; else delete expandContentRefs.current[ex.id]; }}
-                    style={{
-                      maxHeight: isOpen ? (expandedHeights[ex.id] ? `${expandedHeights[ex.id]}px` : 'auto') : '0px',
-                      opacity: isOpen ? 1 : 0,
-                      overflow: 'hidden',
-                      transition: 'max-height 300ms cubic-bezier(0.34,1.56,0.64,1), opacity 300ms cubic-bezier(0.34,1.56,0.64,1)',
-                    }}
-                    className="px-4 pb-4 border-t border-neutral-800 pt-3"
-                  >
-                    {!isEditMode && (
-                      <>
-                        {performanceAlert && expanded === ex.id && (
-                          <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
-                        )}
-                        {todaySets.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {todaySets.map((s, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
-                              >
-                                <Check size={12} style={{ color: plate.hex }} />
-                                serie {i + 1}: {s.weight}kg × {s.reps}
-                              </div>
-                            ))}
+                          <div className="relative h-[88px] w-[34px] px-0.5 opacity-100 transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75" style={{ opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}>
                             <button
+                              type="button"
+                              aria-label="Editar ejercicio"
+                              title="Editar ejercicio"
                               onPointerDown={(e) => e.stopPropagation()}
-                              onClick={() => removeLastSet(ex.id)}
-                              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onTouchStart={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setEditingEx(ex);
+                                setOpenFromManage(false);
+                                setIsEditMode(true);
+                                setExerciseMenuOpen(null);
+                              }}
+                              className="absolute left-1/2 top-0 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                              style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
                             >
-                              <Trash2 size={12} /> última
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Ver historial"
+                              title="Ver historial"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onTouchStart={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setShowHistoryModal(ex.id);
+                                setExerciseMenuOpen(null);
+                              }}
+                              className="absolute left-1/2 top-1/2 flex items-center justify-center rounded-full border border-neutral-700 bg-[#111315] text-neutral-200 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                              style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(2px) translate(-50%, -50%)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
+                            >
+                              <History size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Eliminar ejercicio"
+                              title="Eliminar ejercicio"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onTouchStart={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setExerciseToDelete(ex.id);
+                                setShowDeleteConfirm(true);
+                                setExerciseMenuOpen(null);
+                              }}
+                              className="absolute left-1/2 bottom-0 flex items-center justify-center rounded-full border border-red-500/40 bg-[#1C171A] text-red-300 shadow-lg transition-opacity duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-75"
+                              style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, transform: 'translateX(-2px) translate(-50%, 0)', opacity: exerciseMenuOpen === ex.id ? 1 : 0 }}
+                            >
+                              <Trash2 size={14} />
                             </button>
                           </div>
-                        )}
-
-                        <div className="flex flex-wrap items-end gap-2">
-                          <div className="flex-1 min-w-0 w-full sm:w-auto">
-                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              value={draft.weight}
-                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              placeholder="0"
-                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0 w-full sm:w-auto">
-                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              value={draft.reps}
-                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              placeholder="0"
-                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
-                            />
-                          </div>
-                          <div className="w-full sm:w-[88px]">
-                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              value={draft.rir || ""}
-                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              placeholder="RIR"
-                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
-                            />
-                          </div>
-                          <div className="w-full sm:w-[160px]">
-                            <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
-                            <input
-                              type="text"
-                              value={draft.notes || ""}
-                              onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              placeholder="Nota rápida"
-                              className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
-                            />
-                          </div>
-                          <button
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() => addSet(ex.id)}
-                            className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
-                            style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
-                          >
-                            <Plus size={18} strokeWidth={3} />
-                          </button>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                  )}
-                </SortableItem>
-              );
-            })}
 
-            </SortableContext>
-          </DndContext>
+                        
+                      </div>
+                    </div>
+
+                    {showTimer && activeTimerExercise === ex.id && (
+                      <div className="px-3 pb-2">
+                        <RestTimer
+                          exerciseName={ex.name}
+                          seconds={timerSeconds}
+                          vibrate={timerOpts.vibrate}
+                          sound={timerOpts.sound}
+                          inline
+                          onClose={() => {
+                            suppressClickAfterModalCloseRef.current = true;
+                            setTimeout(() => { suppressClickAfterModalCloseRef.current = false; }, 350);
+                            setShowTimer(false);
+                            setActiveTimerExercise(null);
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <div
+                      ref={(node) => { if (node) expandContentRefs.current[ex.id] = node; else delete expandContentRefs.current[ex.id]; }}
+                      style={{
+                        maxHeight: isOpen ? (expandedHeights[ex.id] ? `${expandedHeights[ex.id]}px` : 'auto') : '0px',
+                        opacity: isOpen ? 1 : 0,
+                        overflow: 'hidden',
+                        transition: 'max-height 300ms cubic-bezier(0.34,1.56,0.64,1), opacity 300ms cubic-bezier(0.34,1.56,0.64,1)',
+                      }}
+                      className="px-4 pb-4 border-t border-neutral-800 pt-3"
+                    >
+                      {!isEditMode && (
+                        <>
+                          {performanceAlert && expanded === ex.id && (
+                            <div className="mb-3 text-sm bg-yellow-500/10 border border-yellow-600/20 text-yellow-300 rounded-lg p-2">{performanceAlert}</div>
+                          )}
+                          {todaySets.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {todaySets.map((s, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-1.5 bg-[#26282D] rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums"
+                                >
+                                  <Check size={12} style={{ color: plate.hex }} />
+                                  serie {i + 1}: {s.weight}kg × {s.reps}
+                                </div>
+                              ))}
+                              <button
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={() => removeLastSet(ex.id)}
+                                className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 px-2 py-1.5"
+                              >
+                                <Trash2 size={12} /> última
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap items-end gap-2">
+                            <div className="flex-1 min-w-0 w-full sm:w-auto">
+                              <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Kg</label>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                value={draft.weight}
+                                onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, weight: e.target.value } }))}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                placeholder="0"
+                                className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0 w-full sm:w-auto">
+                              <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Reps</label>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={draft.reps}
+                                onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, reps: e.target.value } }))}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                placeholder="0"
+                                className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-3 py-2.5 text-base font-bold tabular-nums outline-none focus:border-neutral-400"
+                              />
+                            </div>
+                            <div className="w-full sm:w-[88px]">
+                              <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">RIR</label>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={draft.rir || ""}
+                                onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, rir: e.target.value } }))}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                placeholder="RIR"
+                                className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold tabular-nums outline-none focus:border-neutral-400"
+                              />
+                            </div>
+                            <div className="w-full sm:w-[160px]">
+                              <label className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Notas</label>
+                              <input
+                                type="text"
+                                value={draft.notes || ""}
+                                onChange={(e) => setDrafts((p) => ({ ...p, [ex.id]: { ...draft, notes: e.target.value } }))}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                placeholder="Nota rápida"
+                                className="w-full mt-1 min-h-[44px] bg-[#26282D] border border-neutral-700 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-neutral-400"
+                              />
+                            </div>
+                            <button
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={() => addSet(ex.id)}
+                              className="w-full sm:shrink-0 sm:min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-sm"
+                              style={{ backgroundColor: plate.hex, color: plate.hex === "#C9CDD3" || plate.hex === "#F2C230" ? "#111214" : "#fff" }}
+                            >
+                              <Plus size={18} strokeWidth={3} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                    )}
+                  </SortableItem>
+                );
+              })}
+
+              </SortableContext>
+            </DndContext>
+          </div>
         )}
       </div>
 
