@@ -96,7 +96,6 @@ export default function Analytics({ user, onClose, isVisible = true }) {
       if (rm) byDate[d].rms.push(rm);
     });
     const arr = Object.values(byDate).sort((a,b)=>a.date<b.date?-1:1).map(d=>({ date: d.date, volume: d.volumes, rm: d.rms.length?Math.max(...d.rms):null }));
-    console.log('[Analytics seriesByDate]', JSON.parse(JSON.stringify(arr)));
     return arr;
   }, [selectedExerciseHist, selectedExercise, exerciseList]);
 
